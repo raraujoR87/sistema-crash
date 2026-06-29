@@ -1,0 +1,2989 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrashIQ — Painel ao Vivo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f14;--bg2:#13161e;--bg3:#1a1e28;
+  --border:#ffffff12;--border2:#ffffff22;
+  --text:#e8eaf0;--text2:#9099b0;--text3:#5a6278;
+  --green:#22c55e;--green-bg:#0a2018;
+  --amber:#f59e0b;--amber-bg:#251c00;
+  --red:#ef4444;--red-bg:#200e0e;
+  --blue:#60a5fa;--blue-bg:#0f1e2e;
+  --purple:#a78bfa;--purple-bg:#1a0f2e;
+  --teal:#2dd4bf;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:13px;line-height:1.5;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideL{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@keyframes glowGreen{0%,100%{box-shadow:0 0 20px rgba(34,197,94,.2)}50%{box-shadow:0 0 55px rgba(34,197,94,.6),0 0 90px rgba(34,197,94,.15)}}
+@keyframes glowAmber{0%,100%{box-shadow:0 0 15px rgba(245,158,11,.15)}50%{box-shadow:0 0 40px rgba(245,158,11,.5)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes ping{0%{transform:scale(1);opacity:1}80%,100%{transform:scale(2.4);opacity:0}}
+
+/* ── Layout ── */
+.topbar{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 14px;height:46px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.main{flex:1;display:grid;grid-template-columns:190px 1fr 290px;grid-template-rows:1fr;min-height:0;overflow:hidden;align-items:stretch}
+.main.no-left-col{grid-template-columns:1fr 290px}
+.main.no-right-col{grid-template-columns:190px 1fr}
+.main.no-side-cols{grid-template-columns:1fr}
+.col{overflow-y:auto;padding:10px}
+.col-left{background:var(--bg2);border-right:1px solid var(--border)}
+.col-center{display:flex;flex-direction:column;gap:8px;padding:10px 12px;min-height:0;overflow-y:auto}
+.col-right{background:var(--bg2);border-left:1px solid var(--border);overflow-y:auto}
+
+/* ── Badge de tendência no topbar ── */
+.tend-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid transparent;transition:.3s;flex-shrink:0}
+.tend-chip.alta{background:var(--green-bg);color:var(--green);border-color:var(--green)}
+.tend-chip.baixa{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+.tend-chip.neutra{background:var(--bg3);color:var(--text3);border-color:var(--border2)}
+
+/* ── Topbar ── */
+.logo{font-size:15px;font-weight:700;letter-spacing:-.5px;flex-shrink:0}
+.logo span{color:var(--green)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--red);transition:.3s;flex-shrink:0}
+.dot.live{background:var(--green);animation:pulse 2s infinite}
+.conn-lbl{font-size:11px;color:var(--text2)}
+.sep{width:1px;height:26px;background:var(--border2);margin:0 2px;flex-shrink:0}
+.hc{display:flex;flex-direction:column;align-items:center;min-width:44px}
+.hc-v{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.hc-l{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em}
+.btn-cfg{margin-left:auto;padding:5px 11px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;transition:.15s;flex-shrink:0}
+.btn-cfg:hover{background:var(--border2);color:var(--text)}
+
+/* ── Seção ── */
+.sec{margin-bottom:11px}
+.st{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+
+/* ── Seção colapsável ── */
+.collap{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px}
+.collap-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;cursor:pointer;user-select:none;background:var(--bg3);transition:background .15s}
+.collap-hdr:hover{background:var(--border)}
+.collap-hdr .ch-title{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;gap:6px}
+.collap-hdr .ch-badge{font-size:8px;padding:1px 6px;border-radius:8px;background:var(--bg2);color:var(--text3)}
+.collap-hdr .ch-arrow{font-size:10px;color:var(--text3);transition:transform .2s}
+.collap-hdr.open .ch-arrow{transform:rotate(180deg)}
+.collap-body{display:none;padding:10px 11px;background:var(--bg2)}
+.collap-body.open{display:block}
+
+/* ── Card de sinal principal reforçado ── */
+.ac{border-radius:12px;padding:14px 16px;border:1px solid var(--border2);transition:all .3s ease;position:relative;overflow:hidden}
+.signal-meta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px}
+.sm-cell{background:rgba(0,0,0,.2);border-radius:7px;padding:6px 8px;text-align:center}
+.sm-val{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.sm-lbl{font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
+
+/* ── Coluna direita ── */
+.col-right{padding:0}
+.rp-section{padding:10px 12px;border-bottom:1px solid var(--border)}
+.rp-section:last-child{border-bottom:none}
+.rp-title{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px}
+
+/* ── Feed ── */
+.rrow{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:6px;margin-bottom:2px;animation:slideL .2s ease}
+.rrow:hover{background:var(--bg3)}
+.rb{padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+.rbl{background:var(--red-bg);color:var(--red)}
+.rbm{background:var(--amber-bg);color:var(--amber)}
+.rbh{background:var(--green-bg);color:var(--green)}
+.rbs{background:var(--purple-bg);color:var(--purple)}
+.rm{font-size:10px;color:var(--text3)}
+.rbl2{font-size:10px;color:var(--text2);margin-left:auto}
+
+/* ══ AÇÃO PRINCIPAL ════════════════════════════════════════════════════════ */
+.ac{border-radius:10px;padding:12px 14px;border:1px solid var(--border2);transition:all .3s ease;position:relative;overflow:hidden;min-height:120px}
+.ac-gray{background:var(--bg3);border-color:var(--border2)}
+.ac-amber{background:var(--amber-bg);border-color:var(--amber);animation:glowAmber 3s ease-in-out infinite}
+.ac-green{background:var(--green-bg);border-color:var(--green);animation:glowGreen 1.8s ease-in-out infinite}
+.ac-gale{background:#1c1400;border-color:#d97706;animation:glowAmber 2s ease-in-out infinite}
+.ac-red{background:var(--red-bg);border-color:var(--red)}
+.ac-rg{background:var(--green-bg);border-color:var(--green)}
+.ac-rs{background:var(--red-bg);border-color:var(--red)}
+
+/* badge no topo */
+.ac-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.ac-gray  .ac-badge{background:#374151;color:#9ca3af}
+.ac-amber .ac-badge{background:var(--amber);color:#000}
+.ac-green .ac-badge{background:var(--green);color:#000}
+.ac-gale  .ac-badge{background:#d97706;color:#000}
+.ac-red   .ac-badge{background:var(--red);color:#fff}
+.ac-rg    .ac-badge{background:var(--green);color:#000}
+.ac-rs    .ac-badge{background:var(--red);color:#fff}
+
+.ping-dot{width:6px;height:6px;border-radius:50%;background:currentColor;position:relative;flex-shrink:0}
+.ping-dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:currentColor;animation:ping 1.5s cubic-bezier(0,0,.2,1) infinite}
+
+.ac-title{font-size:16px;font-weight:700;letter-spacing:-.3px;margin-bottom:3px;line-height:1.2;word-break:break-word}
+.ac-sub{font-size:9.5px;color:var(--text2);line-height:1.35;word-break:break-word}
+.ac-actions{display:flex;gap:5px;margin-top:8px}
+.abtn{flex:1;padding:5px 0;border-radius:5px;border:1px solid var(--border2);background:var(--bg);color:var(--text2);font-size:9.5px;font-weight:600;cursor:pointer;transition:.15s}
+.abtn:hover{background:var(--bg3)}
+.abtn.g{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.abtn.g:hover{background:#0f2e1a}
+.abtn.r{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.abtn.r:hover{background:#300f0f}
+
+.score-row{display:flex;align-items:center;gap:7px;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)}
+.sbar{flex:1;height:4px;background:var(--border2);border-radius:2px;overflow:hidden}
+.sfill{height:100%;border-radius:2px;transition:width .5s ease}
+.snum{font-size:10px;font-weight:600;min-width:30px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* ── Densidade de cards ── */
+:root{
+  --card-pad: 7px;
+  --card-font: 9px;
+  --card-font-sm: 8px;
+  --card-icon: 20px;
+  --agrid-cols: 4;
+}
+[data-density="xs"]{--card-pad:4px;--card-font:7.5px;--card-font-sm:6.5px;--card-icon:16px}
+[data-density="sm"]{--card-pad:5px;--card-font:8px;--card-font-sm:7px;--card-icon:18px}
+[data-density="md"]{--card-pad:7px;--card-font:9px;--card-font-sm:8px;--card-icon:20px}
+[data-density="lg"]{--card-pad:10px;--card-font:10px;--card-font-sm:9px;--card-icon:24px}
+
+/* Botões de densidade no topbar */
+.density-btns{display:flex;gap:2px;align-items:center}
+.dbtn{padding:3px 7px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;transition:.15s;font-family:inherit}
+.dbtn:hover{border-color:var(--text2);color:var(--text)}
+.dbtn.active{background:var(--bg3);border-color:var(--green);color:var(--green)}
+
+/* Grid de agentes — colunas controladas por variável */
+/* ── Agentes ── */
+.agrid{display:grid;grid-template-columns:repeat(var(--agrid-cols,4),1fr);gap:5px}
+/* Blame table */
+.blame-tbl{width:100%;border-collapse:collapse;font-size:9px;margin-top:6px}
+.blame-tbl th{color:var(--text3);text-transform:uppercase;letter-spacing:.04em;padding:2px 4px;text-align:left;font-weight:600}
+.blame-tbl td{padding:2px 4px;border-top:1px solid var(--border)}
+.blame-bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden;width:60px;display:inline-block;vertical-align:middle}
+.blame-fill{height:100%;border-radius:3px;background:var(--red)}
+.blame-fill.ok{background:var(--green)}
+.ag{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:var(--card-pad);transition:border-color .2s;overflow:hidden;min-width:0;resize:vertical;min-height:60px}
+.ag.eE{border-color:var(--green)}.ag.eA{border-color:var(--amber)}.ag.eX{border-color:var(--red)}
+.agh{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+.agi{width:var(--card-icon);height:var(--card-icon);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:calc(var(--card-icon) * .5);flex-shrink:0}
+.agn{font-size:var(--card-font);font-weight:600}
+.agr{font-size:var(--card-font-sm);color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+.agbr{display:flex;align-items:center;gap:4px;margin-bottom:3px}
+.agb{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.agbf{height:100%;border-radius:2px;transition:width .4s ease}
+.ags{font-size:var(--card-font);font-weight:600;min-width:20px;text-align:right}
+.agv{display:inline-flex;padding:1px 4px;border-radius:3px;font-size:var(--card-font-sm);font-weight:700;letter-spacing:.03em;text-transform:uppercase;margin-bottom:3px}
+.vE{background:var(--green-bg);color:var(--green)}
+.vA{background:var(--amber-bg);color:var(--amber)}
+.vW{background:var(--bg);color:var(--text3)}
+.vX{background:var(--red-bg);color:var(--red)}
+.agm{font-size:var(--card-font-sm);color:var(--text2);line-height:1.25;max-height:36px;overflow:hidden}
+
+/* ── Convergência ── */
+.conv-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.conv-score-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--bg3);color:var(--text2);letter-spacing:.04em}
+.conv-bars{display:flex;flex-direction:column;gap:5px}
+.conv-row{display:grid;grid-template-columns:52px 1fr 34px 62px;align-items:center;gap:6px;animation:fadeUp .2s ease}
+.conv-label{font-size:9px;font-weight:600;color:var(--text3);letter-spacing:.06em}
+.conv-track{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.conv-fill{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.4,0,.2,1),background .4s}
+.conv-val{font-size:10px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.conv-tag{font-size:8px;font-weight:700;text-align:center;padding:1px 4px;border-radius:3px;letter-spacing:.04em}
+.conv-tag.te{background:var(--green-bg);color:var(--green)}
+.conv-tag.ta{background:var(--amber-bg);color:var(--amber)}
+.conv-tag.tw{background:var(--bg3);color:var(--text3)}
+.conv-tag.tx{background:var(--red-bg);color:var(--red)}
+.conv-diagnostico{margin-top:8px;font-size:10px;color:var(--text2);line-height:1.45;background:var(--bg3);border-radius:6px;padding:6px 8px;border-left:3px solid var(--border2)}
+
+/* ── Sinapse Neural ── */
+.synapse-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:8px 9px 4px;display:flex;flex-direction:column;align-items:center}
+#synapse-canvas{display:block;width:100%;border-radius:8px}
+
+/* ── Chat ── */
+.chat-wrap{flex:1;min-height:260px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;padding:9px}
+.chat-stream{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.cmsg{display:flex;gap:6px;animation:fadeUp .28s ease}
+.cav{width:21px;height:21px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:2px}
+.cbd{flex:1}
+.cwho{font-size:9px;font-weight:600;margin-bottom:1px}
+.ctxt{font-size:10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:3px 6px;line-height:1.35}
+.cs .ctxt{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+.ce .ctxt{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.cx .ctxt{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.ca .ctxt{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+
+/* ── Painel direito ── */
+.sess-card{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:13px;margin-bottom:0}
+.sess-pl{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.pos{color:var(--green)}.neg{color:var(--red)}.zero{color:var(--text2)}
+.ss-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}
+.ssg{background:var(--bg2);border-radius:6px;padding:8px 10px}
+.ssgv{font-size:18px;font-weight:700}
+.ssgl{font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:1px}
+.gpips{display:flex;gap:5px;margin-top:10px}
+.gpip{flex:1;height:10px;border-radius:4px;background:var(--border2);transition:.3s}
+.gpip.ativo{background:var(--amber)}
+.gpip.gr{background:var(--green)}
+.gpip.rd{background:var(--red)}
+
+.etrack{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin:3px 0 7px}
+.efill{height:100%;border-radius:3px;transition:width .5s ease}
+
+.ms{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px}
+.ms:last-child{border-bottom:none}
+.msl{color:var(--text2)}
+.msv{font-weight:600}
+
+/* Config drawer */
+.drawer{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;display:flex;justify-content:flex-end;opacity:0;pointer-events:none;transition:opacity .2s}
+.drawer.open{opacity:1;pointer-events:all}
+.dp{width:310px;background:var(--bg2);border-left:1px solid var(--border);padding:18px;display:flex;flex-direction:column;gap:14px;transform:translateX(100%);transition:transform .28s ease}
+.drawer.open .dp{transform:translateX(0)}
+.dtitle{font-size:14px;font-weight:600}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:11px;color:var(--text2)}
+.field input{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:7px 10px;font-size:13px;font-family:inherit;width:100%}
+.field input:focus{outline:none;border-color:var(--green)}
+.hint{font-size:9px;color:var(--text3)}
+.rr{display:flex;align-items:center;gap:7px}
+.rr input[type=range]{flex:1;accent-color:var(--green)}
+.rv{font-size:13px;font-weight:600;min-width:38px;color:var(--green);text-align:right}
+.risk-box{background:var(--bg3);border-radius:7px;padding:9px;font-size:10px;color:var(--text2)}
+/* Drawer tabs */
+.tab-btn{flex:1;padding:5px 2px;border:none;border-radius:5px;background:transparent;color:var(--text2);cursor:pointer;font-size:9.5px;font-weight:600;transition:.15s}
+.tab-btn.tab-active{background:var(--bg2);color:var(--text)}
+/* Recovery indicator */
+.rec-bar{height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;margin:4px 0}
+.rec-fill{height:100%;background:var(--amber);transition:width .4s}
+/* Backtest result */
+.bt-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:10px}
+.bt-row:last-child{border:none}
+.bt-hour-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:6px}
+.bt-hour-cell{background:var(--bg3);border-radius:4px;padding:3px 4px;font-size:8.5px;text-align:center}
+.risk-box b{color:var(--text)}
+.btn-p{background:var(--green);color:#000;font-weight:700;padding:9px;border-radius:8px;border:none;cursor:pointer;font-size:13px;width:100%;transition:.15s}
+.btn-p:hover{background:#16a34a}
+.btn-c{background:transparent;color:var(--text2);border:1px solid var(--border2);padding:7px;border-radius:7px;cursor:pointer;font-size:12px;width:100%}
+
+/* ── Grafo LangGraph ── */
+@keyframes lgPulse {
+  0% { box-shadow: 0 0 0 0 rgba(var(--lg-color), 0.4); transform: scale(1); }
+  70% { box-shadow: 0 0 0 10px rgba(var(--lg-color), 0); transform: scale(1.05); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--lg-color), 0); transform: scale(1); }
+}
+
+@keyframes lgFlow {
+  0% { width: 0%; opacity: 0; }
+  20% { opacity: 1; }
+  100% { width: 100%; opacity: 1; }
+}
+
+.lg-graph {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 10px;
+  background: var(--bg3);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-top: 4px;
+  overflow-x: auto;
+  resize: vertical;
+  min-height: 100px;
+  --lg-color: 96, 165, 250; /* rgb form */
+}
+.lg-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  background: var(--bg2);
+  border: 2px solid var(--border2);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  min-width: 80px;
+  text-align: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+.lg-node.active {
+  --lg-color: 96, 165, 250;
+  border-color: var(--blue);
+  color: var(--blue);
+  background: var(--blue-bg);
+  animation: lgPulse 1s ease infinite;
+}
+.lg-node.veto {
+  --lg-color: 239, 68, 68;
+  border-color: var(--red);
+  color: var(--red);
+  background: var(--red-bg);
+  animation: lgPulse 1s ease 1;
+}
+.lg-node.success {
+  --lg-color: 34, 197, 94;
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-bg);
+  animation: lgPulse 1.5s ease infinite;
+}
+.lg-edge {
+  flex: 1;
+  height: 4px;
+  background: var(--border2);
+  min-width: 15px;
+  border-radius: 2px;
+  position: relative;
+  flex-shrink: 0;
+}
+.lg-edge::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; height: 100%;
+  background: var(--blue);
+  box-shadow: 0 0 6px var(--blue);
+  border-radius: 2px;
+  width: 0%;
+  opacity: 0;
+}
+.lg-edge.active::after {
+  animation: lgFlow 0.5s ease forwards;
+}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">Crash<span>IQ</span></div>
+  <div style="display:flex;align-items:center;gap:5px">
+    <div class="dot" id="dot"></div>
+    <div class="conn-lbl" id="clbl">Conectando...</div>
+  </div>
+  <div class="sep"></div>
+  <div class="hc"><div class="hc-v" id="h-alvo" style="color:var(--teal)">1.50x</div><div class="hc-l">Alvo</div></div>
+  <div class="sep"></div>
+  <div class="hc"><div class="hc-v" id="h-stake">R$10</div><div class="hc-l">Stake</div></div>
+  <div class="sep"></div>
+  <div class="hc"><div class="hc-v" id="h-rds">0</div><div class="hc-l">Rodadas</div></div>
+  <div class="sep"></div>
+  <div class="hc"><div class="hc-v" id="h-last" style="color:var(--text2)">—</div><div class="hc-l">Último</div></div>
+  <div class="sep"></div>
+  <div class="hc"><div class="hc-v" id="h-score" style="color:var(--text2)">—</div><div class="hc-l">Score</div></div>
+  <div class="sep"></div>
+  <div class="hc"><div class="hc-v" id="h-pl" style="color:var(--text2)">R$0</div><div class="hc-l">P&amp;L</div></div>
+  <div class="sep"></div>
+  <div id="h-tend-chip" class="tend-chip neutra" title="Tendência de mercado">— NEUTRA</div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <button class="btn-cfg" onclick="openD()" title="Configurações">&#9881; Config</button>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs-bar" style="display:flex;gap:10px;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;">
+   <button class="tab-btn active" id="btn-tab-live" onclick="switchTab('live')">Painel ao Vivo</button>
+   <button class="tab-btn" id="btn-tab-hist" onclick="switchTab('hist')">Histórico</button>
+</div>
+
+<style>
+.tab-btn { background:var(--bg3); border:1px solid var(--border2); color:var(--text2); padding:6px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; transition:.2s; }
+.tab-btn:hover { background:var(--border2); color:var(--text); }
+.tab-btn.active { background:var(--green-bg); border-color:var(--green); color:var(--green); }
+.hist-table { width:100%; border-collapse:collapse; font-size:11px; text-align:left; }
+.hist-table th { padding:10px; border-bottom:1px solid var(--border); color:var(--text3); font-weight:700; text-transform:uppercase; letter-spacing:0.05em; }
+.hist-table td { padding:10px; border-bottom:1px solid var(--border2); }
+</style>
+
+<!-- MAIN -->
+<div class="main" id="tab-live">
+
+  <!-- LEFT: feed -->
+  <div class="col col-left" id="w-feed">
+    <div class="sec">
+      <div class="st">Feed ao vivo</div>
+      <div id="feed"><div style="color:var(--text3);font-size:10px;padding:6px 0">Aguardando...</div></div>
+    </div>
+    <div class="sec">
+      <div class="st">Historico de acoes</div>
+      <div id="hist" style="font-size:10px;color:var(--text2)">—</div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="col-center">
+
+    <!-- ① AÇÃO PRINCIPAL — sempre visível, informação crítica -->
+    <div id="w-action">
+      <div class="ac ac-gray" id="ac">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div class="ac-badge" id="acb"><span>AGUARDAR</span></div>
+          <div class="ac-badge" id="shield-badge" style="display:none;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue)">🛡️ ESCUDO ATIVADO</div>
+          <div class="conv-score-badge" id="lg-status" style="font-size:8px;margin-left:auto">STANDBY</div>
+        </div>
+        <div class="ac-title" id="act">AGUARDAR</div>
+        <div class="ac-sub"  id="acs">Calibrando agentes com historico...</div>
+        <div class="ac-actions" id="acas" style="display:none">
+          <button class="abtn g" onclick="mr('green')">&#10003; GREEN</button>
+          <button class="abtn r" onclick="mr('stop')">&#10007; STOP</button>
+          <button class="abtn"   onclick="cs()">Cancelar</button>
+        </div>
+        <div class="score-row" style="margin-top:8px">
+          <div style="font-size:10px;color:var(--text2);min-width:34px">Score</div>
+          <div class="sbar"><div class="sfill" id="sf" style="width:0%;background:var(--text3)"></div></div>
+          <div class="snum" id="sn">0.000</div>
+        </div>
+        <!-- Metadados do sinal: prob + tendência + bloco -->
+        <div class="signal-meta" id="w-meta">
+          <div class="sm-cell">
+            <div class="sm-val" id="sm-prob" style="color:var(--text2)">—</div>
+            <div class="sm-lbl">Probabilidade</div>
+          </div>
+          <div class="sm-cell">
+            <div class="sm-val" id="sm-tend" style="color:var(--text2)">—</div>
+            <div class="sm-lbl">Tendência</div>
+          </div>
+          <div class="sm-cell">
+            <div class="sm-val" id="sm-bloco" style="color:var(--text2)">—</div>
+            <div class="sm-lbl">Bloco WR</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② AGENTES — grade sempre visível -->
+    <div id="w-agents">
+      <div class="agrid" id="agrid">
+        <div style="grid-column:1/-1;color:var(--text3);font-size:10px;text-align:center;padding:16px">Aguardando primeira rodada...</div>
+      </div>
+    </div>
+
+    <!-- ③ CONVERGÊNCIA — sempre visível, informação de análise -->
+    <div id="w-conv">
+      <div class="conv-panel" id="conv-panel">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div class="st">Convergencia dos Agentes</div>
+          <div class="conv-score-badge" id="conv-score">—</div>
+        </div>
+        <div class="conv-bars">
+          <div class="conv-row" id="conv-streak">
+            <div class="conv-label">STREAK</div>
+            <div class="conv-track"><div class="conv-fill" id="cf-streak"></div></div>
+            <div class="conv-val" id="cv-streak">—</div>
+            <div class="conv-tag" id="ct-streak">—</div>
+          </div>
+          <div class="conv-row" id="conv-margem">
+            <div class="conv-label">MARGEM</div>
+            <div class="conv-track"><div class="conv-fill" id="cf-margem"></div></div>
+            <div class="conv-val" id="cv-margem">—</div>
+            <div class="conv-tag" id="ct-margem">—</div>
+          </div>
+          <div class="conv-row" id="conv-temporal">
+            <div class="conv-label">TEMPORAL</div>
+            <div class="conv-track"><div class="conv-fill" id="cf-temporal"></div></div>
+            <div class="conv-val" id="cv-temporal">—</div>
+            <div class="conv-tag" id="ct-temporal">—</div>
+          </div>
+          <div class="conv-row" id="conv-covariancia">
+            <div class="conv-label">COV</div>
+            <div class="conv-track"><div class="conv-fill" id="cf-covariancia"></div></div>
+            <div class="conv-val" id="cv-covariancia">—</div>
+            <div class="conv-tag" id="ct-covariancia">—</div>
+          </div>
+          <div class="conv-row" id="conv-temperatura">
+            <div class="conv-label">TEMP</div>
+            <div class="conv-track"><div class="conv-fill" id="cf-temperatura"></div></div>
+            <div class="conv-val" id="cv-temperatura">—</div>
+            <div class="conv-tag" id="ct-temperatura">—</div>
+          </div>
+          <div class="conv-row" id="conv-risco">
+            <div class="conv-label">RISCO</div>
+            <div class="conv-track"><div class="conv-fill" id="cf-risco"></div></div>
+            <div class="conv-val" id="cv-risco">—</div>
+            <div class="conv-tag" id="ct-risco">—</div>
+          </div>
+        </div>
+        <div class="conv-diagnostico" id="conv-diag">Aguardando primeira rodada...</div>
+      </div>
+    </div>
+
+    <!-- ④ GRAFO — colapsável -->
+    <div id="w-grafo">
+      <div class="collap" id="collap-grafo">
+        <div class="collap-hdr" onclick="toggleCollap('grafo')">
+          <span class="ch-title">⬡ Grafo de Orquestração <span class="ch-badge" id="grafo-badge">STANDBY</span></span>
+          <span class="ch-arrow">▼</span>
+        </div>
+        <div class="collap-body" id="collap-body-grafo">
+          <div class="lg-graph" id="lg-graph">
+            <div class="lg-node" id="lgn-start">START</div>
+            <div class="lg-edge" id="lge-1"></div>
+            <div class="lg-node" id="lgn-risco">Risco</div>
+            <div class="lg-edge" id="lge-2"></div>
+            <div class="lg-node" id="lgn-temporal">Temporal</div>
+            <div class="lg-edge" id="lge-3"></div>
+            <div class="lg-node" id="lgn-analise">Análise</div>
+            <div class="lg-edge" id="lge-4"></div>
+            <div class="lg-node" id="lgn-consolidacao">Consolidação</div>
+            <div class="lg-edge" id="lge-5"></div>
+            <div class="lg-node" id="lgn-end">END</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ ANÁLISE DE HORÁRIO + BLAME — colapsável -->
+    <div id="w-analise">
+      <div class="collap" id="collap-analise">
+        <div class="collap-hdr" onclick="toggleCollap('analise')">
+          <span class="ch-title">🕐 Análise de Horário &amp; Responsabilidade</span>
+          <span class="ch-arrow">▼</span>
+        </div>
+        <div class="collap-body" id="collap-body-analise">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <div class="st" style="margin-bottom:5px">Performance por Horário</div>
+              <div id="bloco-heatmap" style="font-size:9px;color:var(--text3)">Acumulando histórico...</div>
+            </div>
+            <div>
+              <div class="st" style="margin-bottom:5px">Responsabilidade por Stop</div>
+              <div id="blame-content" style="color:var(--text3);font-size:9px">Sem dados ainda</div>
+            </div>
+          </div>
+          <!-- Tendência detalhada (antes era painel separado) -->
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)" id="tend-panel">
+            <div class="st" style="margin-bottom:5px">Detalhe da Tendência</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div id="tend-badge" style="font-size:22px;font-weight:700;color:var(--text3)">—</div>
+              <div>
+                <div style="font-size:10px;font-weight:600" id="tend-pct">—</div>
+                <div style="font-size:8px;color:var(--text3)" id="tend-mom">—</div>
+              </div>
+            </div>
+            <div style="font-size:8px;color:var(--text2);margin-top:5px;line-height:1.4" id="tend-desc"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑥ INSIGHT IA — colapsável -->
+    <div id="w-insight">
+      <div class="collap" id="collap-insight">
+        <div class="collap-hdr" onclick="toggleCollap('insight')">
+          <span class="ch-title">🤖 Insight IA (Gemini)</span>
+          <button onclick="event.stopPropagation();pedirInsight()" style="font-size:8px;padding:2px 7px;border-radius:4px;background:var(--bg);border:1px solid var(--border2);color:var(--text2);cursor:pointer;margin-left:8px">Atualizar</button>
+          <span class="ch-arrow" style="margin-left:auto">▼</span>
+        </div>
+        <div class="collap-body" id="collap-body-insight">
+          <div id="marketing-gif" style="display:none;text-align:center;margin-bottom:8px">
+            <img id="marketing-gif-img" src="" style="max-width:100%;max-height:100px;border-radius:8px;object-fit:cover" alt="">
+          </div>
+          <div id="marketing-txt" style="font-size:10px;color:var(--text);line-height:1.6">Aguardando primeiro insight...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑦ SINAPSE NEURAL — colapsável -->
+    <div id="w-sinapse">
+      <div class="collap" id="collap-sinapse">
+        <div class="collap-hdr" onclick="toggleCollap('sinapse')">
+          <span class="ch-title">🧠 Rede Neural — Sinapses</span>
+          <span class="ch-arrow">▼</span>
+        </div>
+        <div class="collap-body" id="collap-body-sinapse">
+          <canvas id="synapse-canvas" style="display:block;width:100%;border-radius:8px"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑧ CHAT DE RACIOCÍNIO — colapsável, aberto por padrão -->
+    <div id="w-chat">
+      <div class="collap" id="collap-chat">
+        <div class="collap-hdr open" onclick="toggleCollap('chat')">
+          <span class="ch-title">💬 Raciocínio dos Agentes</span>
+          <span class="ch-arrow" style="transform:rotate(180deg)">▼</span>
+        </div>
+        <div class="collap-body open" id="collap-body-chat">
+          <div class="chat-stream" id="chat" style="max-height:260px;overflow-y:auto">
+            <div class="cmsg cs"><div class="cav" style="background:var(--blue-bg);color:var(--blue)">SYS</div><div class="cbd"><div class="cwho" style="color:var(--blue)">Sistema</div><div class="ctxt">Aguardando feed ao vivo...</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT — organizada por criticidade -->
+  <div class="col col-right" id="col-right">
+
+    <!-- 1. SESSÃO — mais crítico -->
+    <div id="w-sessao">
+      <div class="rp-section">
+        <div class="rp-title" style="display:flex;justify-content:space-between;align-items:center">Sessão Atual <span id="sess-ts" style="font-size:8px;font-weight:400;color:var(--text3)"></span></div>
+        <div class="sess-card">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">P&amp;L ACUMULADO</div>
+          <div class="sess-pl zero" id="spl">R$ 0,00</div>
+          <div class="gpips" id="gpips" style="margin-top:6px"></div>
+          <div class="ss-grid" style="margin-top:6px">
+            <div class="ssg"><div class="ssgv" id="sg-g" style="color:var(--green)">0</div><div class="ssgl">Greens</div></div>
+            <div class="ssg"><div class="ssgv" id="sg-s" style="color:var(--red)">0</div><div class="ssgl">Stops</div></div>
+            <div class="ssg"><div class="ssgv" id="sg-e">0</div><div class="ssgl">Entradas</div></div>
+            <div class="ssg"><div class="ssgv" id="sg-w">—</div><div class="ssgl">Win Rate</div></div>
+            <div class="ssg"><div class="ssgv" id="sg-r" style="color:var(--cyan,#22d3ee)">0</div><div class="ssgl">Rodadas</div></div>
+          </div>
+        </div>
+        <!-- Progressão de gale -->
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+          <div style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.05em;margin-bottom:6px" id="gale-label">PROGRESSÃO — G0</div>
+          <div id="gale-prog" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. RISCO — métricas de decisão -->
+    <div id="w-risco">
+      <div class="rp-section">
+        <div class="rp-title">Risco &amp; Probabilidade</div>
+        <div class="ms"><span class="msl">EV do Ciclo</span><span class="msv" id="rs-ev">—</span></div>
+        <div class="ms"><span class="msl">P(Acerto c/ Gale)</span><span class="msv" id="rs-acerto">—</span></div>
+        <div class="ms"><span class="msl">Risco Total</span><span class="msv" id="rs-risco">—</span></div>
+        <div class="ms"><span class="msl">P(Ruína)</span><span class="msv" id="rs-ruina" style="color:var(--text2)">—</span></div>
+        <div class="ms" style="margin-top:4px;padding-top:6px;border-top:1px solid var(--border)">
+          <span class="msl">WR Histórico</span><span class="msv" id="rs-wrhist">—</span>
+        </div>
+        <div class="ms"><span class="msl">WR Ao Vivo</span><span class="msv" id="rs-wrvivo">—</span></div>
+        <div class="ms"><span class="msl">WR Combinado</span><span class="msv" id="rs-winrecente">—</span></div>
+      </div>
+    </div>
+
+    <!-- 3. MÉTRICAS AO VIVO -->
+    <div id="w-metricas-vivo">
+      <div class="rp-section">
+        <div class="rp-title">Métricas ao Vivo</div>
+        <div class="ms"><span class="msl">Bloco atual</span><span class="msv" id="mb">—</span></div>
+        <div class="ms"><span class="msl">Temperatura</span><span class="msv" id="mtemp">—</span></div>
+        <div class="ms"><span class="msl">Votos ENTRAR</span><span class="msv" id="mvot" style="color:var(--text2)">0/6</span></div>
+        <div class="ms"><span class="msl">Streak REDs</span>
+          <span class="msv" id="stn" style="color:var(--red)">0</span>
+        </div>
+        <div class="ms"><span class="msl">Gatilho streak</span><span class="msv" id="gtv">—</span></div>
+        <div class="ms"><span class="msl">Rodadas mem.</span><span class="msv" id="mmem">0</span></div>
+        <div class="ms"><span class="msl">Falsos positivos</span><span class="msv" id="mfp" style="color:var(--text2)">0</span></div>
+        <!-- EMA compacta -->
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text2);margin-bottom:2px"><span>EMA Rápida</span><span id="er" style="font-weight:600">—</span></div>
+          <div class="etrack"><div class="efill" id="erf" style="width:0%;background:var(--amber)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text2);margin-bottom:2px"><span>EMA Lenta</span><span id="el" style="font-weight:600">—</span></div>
+          <div class="etrack"><div class="efill" id="elf" style="width:0%;background:var(--blue)"></div></div>
+          <div id="em-st" style="font-size:8px;color:var(--text3);margin-top:2px">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. PADRÃO DE CATEGORIAS -->
+    <div id="w-padrao-categorias">
+      <div class="rp-section">
+        <div class="rp-title">Padrão de Categorias</div>
+        <div id="ptxt" style="font-size:9px;color:var(--text2);word-break:break-all;margin-bottom:4px">—</div>
+        <div style="display:flex;align-items:baseline;gap:4px">
+          <span style="font-size:18px;font-weight:700;color:var(--text3)" id="pval">—</span>
+          <span style="font-size:9px;color:var(--text3)">P(próx ≥ alvo)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. TREINAMENTO — menos crítico, fica por último -->
+    <div id="w-treino">
+      <div class="rp-section">
+        <div class="rp-title">Cérebro — Treinamento</div>
+        <div class="ms"><span class="msl">Histórico CSV</span><span class="msv" id="tr-hist">—</span></div>
+        <div class="ms"><span class="msl">Rodadas ao vivo</span><span class="msv" id="tr-vivo" style="color:var(--green)">—</span></div>
+        <div class="ms"><span class="msl">Total treino</span><span class="msv" id="tr-total">—</span></div>
+        <div class="ms"><span class="msl">Último retreino</span><span class="msv" id="tr-data">—</span></div>
+        <div class="ms"><span class="msl">WR sistema</span><span class="msv" id="tr-wr">—</span></div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+          <div style="font-size:8px;font-weight:700;color:var(--text3);letter-spacing:.05em;margin-bottom:3px">MELHORES HORÁRIOS</div>
+          <div id="tr-top-blocos" style="font-size:9px;color:var(--text2)">—</div>
+        </div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+          <div style="font-size:8px;font-weight:700;color:var(--text3);letter-spacing:.05em;margin-bottom:3px">MELHORES PADRÕES</div>
+          <div id="tr-top-padroes" style="font-size:9px;color:var(--text2);word-break:break-all">—</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px">
+          <button onclick="solicitarRetreino()" style="padding:5px;background:var(--blue-bg);border:1px solid var(--blue);color:var(--blue);border-radius:5px;cursor:pointer;font-size:9px;font-weight:600">⟳ Retreinar</button>
+          <label style="display:block;padding:5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:5px;cursor:pointer;font-size:9px;font-weight:600;text-align:center">
+            📁 XLSX <input type="file" id="xlsx-file" accept=".xlsx" style="display:none" onchange="uploadXlsx(this)">
+          </label>
+        </div>
+        <div id="xlsx-status" style="margin-top:4px;font-size:8px;color:var(--text2);text-align:center;min-height:12px"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TAB HISTORICO -->
+<div id="tab-hist" style="display:none; padding:20px; overflow-y:auto; flex:1; background:var(--bg);">
+  <div style="max-width:900px; margin:0 auto; background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2 style="font-size:16px; font-weight:700;">Histórico de Rodadas</h2>
+      <button class="btn-cfg" onclick="carregarHistorico()">🔄 Atualizar</button>
+    </div>
+    <table class="hist-table">
+       <thead>
+          <tr><th>ID</th><th>Data/Hora</th><th>Bloco</th><th>Ação do Robô</th><th>Multiplicador</th></tr>
+       </thead>
+       <tbody id="hist-tbody">
+         <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2);">Aguardando...</td></tr>
+       </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- CONFIG DRAWER -->
+<div class="drawer" id="drw" onclick="closeOut(event)">
+  <div class="dp" style="width:360px;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="dtitle">&#9881; Configuracoes</div>
+      <button onclick="closeD()" style="background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer">&#10005;</button>
+    </div>
+
+    <!-- Densidade dos cards — antes das tabs -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px;margin-bottom:12px">
+      <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Aparência dos Cards</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:10px;color:var(--text2)">Tamanho</span>
+        <div class="density-btns">
+          <button class="dbtn" id="dbtn-xs" onclick="setDensity('xs')">XS</button>
+          <button class="dbtn" id="dbtn-sm" onclick="setDensity('sm')">S</button>
+          <button class="dbtn active" id="dbtn-md" onclick="setDensity('md')">M</button>
+          <button class="dbtn" id="dbtn-lg" onclick="setDensity('lg')">L</button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:10px;color:var(--text2)">Colunas de agentes</span>
+        <div class="density-btns">
+          <button class="dbtn" id="cbtn-2" onclick="setCols(2)">2</button>
+          <button class="dbtn" id="cbtn-3" onclick="setCols(3)">3</button>
+          <button class="dbtn active" id="cbtn-4" onclick="setCols(4)">4</button>
+          <button class="dbtn" id="cbtn-5" onclick="setCols(5)">5</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Widgets do Dashboard -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px;margin-bottom:12px">
+      <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">🧩 Configurar Widgets</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:160px;overflow-y:auto;padding-right:4px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-feed" checked onchange="toggleWidget('feed')"> Feed ao Vivo
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-action" checked onchange="toggleWidget('action')"> Cartão de Sinal
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-meta" checked onchange="toggleWidget('meta')"> Detalhes Sinal
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-agents" checked onchange="toggleWidget('agents')"> Grade Agentes
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-conv" checked onchange="toggleWidget('conv')"> Convergência
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-grafo" checked onchange="toggleWidget('grafo')"> Grafo Orquestra
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-analise" checked onchange="toggleWidget('analise')"> Blocos &amp; Blame
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-insight" checked onchange="toggleWidget('insight')"> Insight IA
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-sinapse" checked onchange="toggleWidget('sinapse')"> Sinapse Canvas
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-chat" checked onchange="toggleWidget('chat')"> Chat Agentes
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-sessao" checked onchange="toggleWidget('sessao')"> Sessão Atual
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-risco" checked onchange="toggleWidget('risco')"> Risco &amp; Prob.
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-metricas-vivo" checked onchange="toggleWidget('metricas-vivo')"> Métricas ao Vivo
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-padrao-categorias" checked onchange="toggleWidget('padrao-categorias')"> Padrões Cat.
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;color:var(--text)">
+          <input type="checkbox" id="wcheck-treino" checked onchange="toggleWidget('treino')"> Cérebro/Treino
+        </label>
+      </div>
+      <div style="margin-top:6px;display:flex;justify-content:flex-end">
+        <button onclick="salvarWidgetsConfig()" style="font-size:9px;padding:3px 8px;border-radius:4px;background:var(--blue-bg);border:1px solid var(--blue);color:var(--blue);cursor:pointer;font-weight:600">💾 Salvar Layout</button>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div style="display:flex;gap:2px;margin-bottom:14px;background:var(--bg3);border-radius:7px;padding:3px">
+      <button id="tab-btn-0" class="tab-btn tab-active" onclick="showTab(0)">⚙️ Estratégia</button>
+      <button id="tab-btn-1" class="tab-btn" onclick="showTab(1)">🔔 Alertas</button>
+      <button id="tab-btn-2" class="tab-btn" onclick="showTab(2)">📊 Backtest</button>
+      <button id="tab-btn-3" class="tab-btn" onclick="showTab(3)">📱 Telegram</button>
+      <button id="tab-btn-4" class="tab-btn" onclick="showTab(4)">🤖 IA</button>
+    </div>
+
+    <!-- TAB 0: ESTRATÉGIA -->
+    <div id="tab-0">
+      <div class="field">
+        <label>Alvo (multiplicador)</label>
+        <div class="rr">
+          <input type="range" id="ca" min="1.2" max="3.0" step="0.05" value="1.5" oninput="$('cav').textContent=parseFloat(this.value).toFixed(2)+'x';calcR()">
+          <div class="rv" id="cav">1.50x</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Stake base (R$)</label>
+        <input type="number" id="cs2" value="10" min="1" max="1000" step="1" oninput="calcR()">
+      </div>
+      <div class="field">
+        <label>Gales máximos</label>
+        <div class="rr">
+          <input type="range" id="cg" min="0" max="3" step="1" value="2" oninput="$('cgv').textContent='G'+this.value;calcR()">
+          <div class="rv" id="cgv">G2</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Estratégia de recuperação</label>
+        <select id="c-estrat" onchange="calcR()" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:5px;font-size:11px">
+          <option value="martingale">Martingale — 2x por nível</option>
+          <option value="fibonacci">Fibonacci — 1,1,2,3,5,8...</option>
+          <option value="dalembert">D'Alembert — +1 unidade por perda</option>
+          <option value="masaniello">Masaniello — sessão parametrizada</option>
+          <option value="flat">Flat — stake fixo sempre</option>
+        </select>
+      </div>
+
+      <!-- Masaniello params (aparece só quando selecionado) -->
+      <div id="masaniello-params" style="display:none;gap:6px;flex-direction:column">
+        <div class="field">
+          <label>Rodadas na sessão (N)</label>
+          <input type="number" id="c-masn" value="10" min="3" max="30" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:5px">
+        </div>
+        <div class="field">
+          <label>Meta de lucro da sessão (R$)</label>
+          <input type="number" id="c-mast" value="20" min="5" max="500" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:5px">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Stakes customizadas (G0,G1,G2… separado por vírgula)</label>
+        <input type="text" id="c-custom" placeholder="Deixe vazio para usar a estratégia" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:5px;font-size:11px">
+        <div class="hint">Ex: 10,25,60 — override total da estratégia</div>
+      </div>
+
+      <div class="field">
+        <label>Recuperação</label>
+        <div style="display:flex;gap:6px">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+            <input type="radio" name="rec" value="total" checked> Total (100%)
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+            <input type="radio" name="rec" value="parcial"> Parcial
+          </label>
+        </div>
+        <div id="rec-pct-wrap" style="display:none;margin-top:4px">
+          <div class="rr">
+            <input type="range" id="rec-pct" min="25" max="100" step="5" value="50" oninput="$('rec-pct-v').textContent=this.value+'%'">
+            <div class="rv" id="rec-pct-v">50%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODO MANUTENÇÃO -->
+      <div class="field" style="margin-top:10px;padding:8px;border:1px dashed #ef4444;border-radius:6px;background:rgba(239,68,68,0.05)">
+        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-weight:600;color:#f87171;font-size:11px">
+          <span style="display:flex;align-items:center;gap:6px">🛠️ Modo Manutenção (Pausar Bot)</span>
+          <input type="checkbox" id="c-manutencao">
+        </label>
+        <div style="font-size:9px;color:var(--text3);margin-top:4px">Quando ativado, o robô para de monitorar sinais e gerar entradas/gales.</div>
+      </div>
+
+      <div class="risk-box" id="rbox">—</div>
+      <button class="btn-p" onclick="applyC()">Aplicar estratégia</button>
+      <button class="btn-c" onclick="closeD()" style="margin-top:6px">Cancelar</button>
+    </div>
+
+    <!-- TAB 1: ALERTAS SONOROS -->
+    <div id="tab-1" style="display:none">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:10px">Configure alertas sonoros para sinais de entrada</div>
+
+      <div class="field">
+        <label style="display:flex;justify-content:space-between">
+          Alerta sonoro ativo
+          <input type="checkbox" id="alerta-ativo" checked onchange="testarAlerta()">
+        </label>
+      </div>
+      <div class="field">
+        <label>Tipo de alerta</label>
+        <select id="alerta-tipo" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:5px;font-size:11px">
+          <option value="campainha">🔔 Campainha</option>
+          <option value="sirene">🚨 Sirene</option>
+          <option value="casino">🎰 Casino slot</option>
+          <option value="horn">📯 Buzina grave</option>
+          <option value="ding">🎵 Ding metálico</option>
+          <option value="beep">Beep simples</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Volume</label>
+        <div class="rr">
+          <input type="range" id="alerta-vol" min="0" max="3" step="0.1" value="1.5" oninput="$('alerta-vol-v').textContent=Math.round(this.value/3*100)+'%'">
+          <div class="rv" id="alerta-vol-v">50%</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Repetições</label>
+        <div class="rr">
+          <input type="range" id="alerta-rep" min="1" max="5" step="1" value="3" oninput="$('alerta-rep-v').textContent=this.value+'x'">
+          <div class="rv" id="alerta-rep-v">3x</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Antecipar alerta (rounds antes)</label>
+        <div class="rr">
+          <input type="range" id="alerta-ante" min="0" max="5" step="1" value="0" oninput="$('alerta-ante-v').textContent=this.value==0?'No momento':this.value+' round(s) antes'">
+          <div class="rv" id="alerta-ante-v" style="width:120px;font-size:9px">No momento</div>
+        </div>
+        <div class="hint">Com antecedência o alerta dispara antes do sinal confirmado</div>
+      </div>
+      <div class="field">
+        <label>Alertar também em</label>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer"><input type="checkbox" id="alerta-atencao" checked> ATENCAO (preparar)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer"><input type="checkbox" id="alerta-gale"> GALE (reentrada)</label>
+          <label style="display:flex;align-items:center;gap=6px;font-size:11px;cursor:pointer"><input type="checkbox" id="alerta-stop"> STOP (stop loss)</label>
+        </div>
+      </div>
+      <button class="btn-p" onclick="tocarAlerta($('alerta-tipo').value)" style="margin-top:6px">🔊 Testar alerta</button>
+    </div>
+
+    <!-- TAB 2: BACKTEST + XLSX -->
+    <div id="tab-2" style="display:none">
+      <!-- Sincronização XLSX -->
+      <div style="border:1px solid var(--border2);border-radius:7px;padding:8px;margin-bottom:12px">
+        <div style="font-size:10px;font-weight:600;margin-bottom:5px">📂 Sincronizar dados (XLSX)</div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px">Importa planilha Tipminer sem duplicatas</div>
+        <label id="xlsx-label" style="display:block;padding:6px;background:var(--bg3);border:1px dashed var(--border2);color:var(--text2);border-radius:5px;cursor:pointer;font-size:10px;text-align:center">
+          📁 Selecionar .xlsx
+          <input type="file" id="xlsx-file" accept=".xlsx" style="display:none" onchange="uploadXlsx(this)">
+        </label>
+        <div id="xlsx-status" style="margin-top:4px;font-size:9px;color:var(--text2);text-align:center;min-height:12px"></div>
+      </div>
+
+      <!-- Backtest -->
+      <div style="font-size:10px;font-weight:600;margin-bottom:8px">📊 Backteste</div>
+      <div class="field">
+        <label>Alvo</label>
+        <div class="rr">
+          <input type="range" id="bt-alvo" min="1.2" max="3.0" step="0.05" value="1.5" oninput="$('bt-alvo-v').textContent=parseFloat(this.value).toFixed(2)+'x'">
+          <div class="rv" id="bt-alvo-v">1.50x</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Gales máximos</label>
+        <div class="rr">
+          <input type="range" id="bt-gale" min="0" max="3" step="1" value="2" oninput="$('bt-gale-v').textContent='G'+this.value">
+          <div class="rv" id="bt-gale-v">G2</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div class="field">
+          <label>Dia da semana</label>
+          <select id="bt-dia" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:4px;font-size:11px">
+            <option value="">Todos</option>
+            <option>SEG</option><option>TER</option><option>QUA</option>
+            <option>QUI</option><option>SEX</option><option>SAB</option><option>DOM</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bloco (HH:MM)</label>
+          <input type="text" id="bt-bloco" placeholder="ex: 14:20" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:4px;font-size:11px">
+        </div>
+        <div class="field">
+          <label>Hora início</label>
+          <input type="time" id="bt-hi" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:4px;font-size:11px">
+        </div>
+        <div class="field">
+          <label>Hora fim</label>
+          <input type="time" id="bt-hf" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:4px;font-size:11px">
+        </div>
+      </div>
+      <button class="btn-p" onclick="rodarBacktest()" style="margin-top:8px">▶ Rodar backtest</button>
+      <div id="bt-result" style="margin-top:10px;font-size:10px;display:none"></div>
+    </div>
+
+    <!-- TAB 3: TELEGRAM -->
+    <div id="tab-3" style="display:none">
+      <div style="font-size:9px;color:var(--text2);margin-bottom:10px;line-height:1.5">
+        Crie um bot em @BotFather, copie o token e o Chat ID do canal/grupo desejado.
+      </div>
+      <div class="field">
+        <label>Bot Token</label>
+        <input type="text" id="tg-token" placeholder="1234567890:AAF..." style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:5px;font-size:10px;font-family:monospace">
+      </div>
+      <div class="field">
+        <label>Chat ID</label>
+        <input type="text" id="tg-chatid" placeholder="-1001234567890" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:5px;font-size:10px;font-family:monospace">
+      </div>
+
+      <!-- TIMING DO ALERTA -->
+      <div class="field">
+        <label>Quando enviar o alerta</label>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:7px;border-radius:7px;border:1px solid var(--border);background:var(--bg3)" id="tg-modo-entrada-lbl">
+            <input type="radio" name="tg-modo" id="tg-modo-entrada" value="entrada" onchange="toggleTgModo()">
+            <div>
+              <div style="font-size:11px;font-weight:600">Na entrada</div>
+              <div style="font-size:9px;color:var(--text3)">Envia quando o sinal ENTRAR é confirmado</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:7px;border-radius:7px;border:1px solid var(--border);background:var(--bg3)" id="tg-modo-antec-lbl">
+            <input type="radio" name="tg-modo" id="tg-modo-antecedencia" value="antecedencia" checked onchange="toggleTgModo()">
+            <div>
+              <div style="font-size:11px;font-weight:600">Com antecedência</div>
+              <div style="font-size:9px;color:var(--text3)">Envia durante ATENÇÃO, X rounds antes — dá tempo de se preparar</div>
+            </div>
+          </label>
+          <div id="tg-antec-box" style="display:block;margin-left:24px">
+            <label style="font-size:10px;color:var(--text2)">Rodadas de antecedência</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+              <input type="range" id="tg-antec" min="1" max="5" value="1" style="flex:1" oninput="$('tg-antec-v').textContent=this.value">
+              <span id="tg-antec-v" style="font-size:12px;font-weight:700;min-width:14px">1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EVENTOS -->
+      <div class="field">
+        <label>Notificar em</label>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer"><input type="checkbox" id="tg-entrar" checked> ✅ Entrada (sinal ENTRAR)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer"><input type="checkbox" id="tg-resultado" checked> 🏁 Resultado (GREEN / STOP)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer"><input type="checkbox" id="tg-gale" checked> ⚠️ Gale (cada nível)</label>
+        </div>
+      </div>
+
+      <!-- Intervalo periódico -->
+      <div class="field">
+        <label>Envio periódico automático</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <span style="font-size:10px;color:var(--text2)">A cada</span>
+          <input type="range" id="tg-intervalo" min="5" max="120" step="5" value="30"
+                 style="flex:1" oninput="$('tg-int-v').textContent=this.value">
+          <span id="tg-int-v" style="font-size:12px;font-weight:700;min-width:28px">30</span>
+          <span style="font-size:10px;color:var(--text2)">min</span>
+        </div>
+        <div style="font-size:8px;color:var(--text3);margin-top:3px">Inclui stats + insight Gemini com GIF</div>
+      </div>
+
+      <div id="tg-status" style="font-size:9px;margin:6px 0;min-height:14px;text-align:center"></div>
+      <button class="btn-p" onclick="salvarTelegram()">Conectar Telegram</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+        <button class="btn-c" onclick="enviarStatsTelegram()">📊 Stats agora</button>
+        <button class="btn-c" onclick="pedirInsight()">🤖 Insight IA</button>
+      </div>
+    </div>
+
+    <!-- TAB 4: IA (Gemini) -->
+    <div id="tab-4" style="display:none">
+      <div class="field">
+        <label>Google Gemini — API Key</label>
+        <input type="password" id="gemini-key" placeholder="AIza..." autocomplete="off"
+               style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:6px;font-size:10px;font-family:monospace">
+        <div style="font-size:9px;color:var(--text3);margin-top:4px">
+          Obtenha em <b>aistudio.google.com</b> → Get API Key. A chave é salva no banco local.
+        </div>
+      </div>
+      <button class="btn-p" onclick="salvarGemini()">Salvar chave Gemini</button>
+      <div id="gemini-status" style="font-size:9px;margin:8px 0;min-height:14px;text-align:center"></div>
+
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-size:9px;font-weight:700;color:var(--text3);margin-bottom:6px">COMO O GEMINI É USADO</div>
+        <div style="font-size:9px;color:var(--text2);line-height:1.6">
+          <b>Agente IA</b> — analisa últimas 20 rodadas e vota ENTRAR/AGUARDAR em cada round (chamada async, não bloqueia)<br>
+          <b>Insight Periódico</b> — relatório motivacional enviado ao Telegram com análise de tendência e horário<br>
+          <b>Insight Manual</b> — botão "Insight IA" na tab Telegram
+        </div>
+      </div>
+
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-size:9px;font-weight:700;color:var(--text3);margin-bottom:6px">STATUS DO AGENTE IA</div>
+        <div id="ia-veredito-display" style="font-size:9px;color:var(--text2)">Aguardando rounds...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── helpers ───────────────────────────────────────────────────────────────
+const $=id=>document.getElementById(id);
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// ── Drawer ────────────────────────────────────────────────────────────────
+function openD(){$('drw').classList.add('open');calcR()}
+function closeD(){$('drw').classList.remove('open')}
+function closeOut(e){if(e.target===$('drw'))closeD()}
+function calcR(){
+  const a=parseFloat($('ca').value)||1.5;
+  const s=parseFloat($('cs2').value)||10;
+  const g=parseInt($('cg').value)||2;
+  const risk=s*((2**(g+1))-1);
+  let h=`<b>Risco max: R$${risk.toFixed(0)}</b><br>`;
+  for(let i=0;i<=g;i++) h+=`G${i}: R$${(s*(2**i)).toFixed(0)} &rarr; lucro R$${(s*(2**i)*(a-1)).toFixed(0)}<br>`;
+  $('rbox').innerHTML=h;
+}
+
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+let ws, prevEst='', histAc=[], roundNum=0;
+function connect(){
+  ws=new WebSocket('ws://localhost:8765/ws');
+  ws.onopen=()=>{$('dot').classList.add('live');$('clbl').textContent='Conectado'};
+  ws.onclose=()=>{$('dot').classList.remove('live');$('clbl').textContent='Reconectando...';setTimeout(connect,3000)};
+  ws.onmessage=e=>handle(JSON.parse(e.data));
+}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
+function mr(r){send({tipo:'resultado_manual',resultado:r})}
+function cs(){send({tipo:'cancelar_sessao'})}
+
+// ── Handle msgs ──────────────────────────────────────────────────────────
+function handle(m){
+  if(m.tipo==='status'){$('clbl').textContent=m.msg;return}
+  if(m.tipo==='init'){
+    if(m.historico) updateFeed(m.historico);
+    if(m.sessao)    updateSessao(m.sessao);
+    if(m.stats){    updateHdr(m.stats,null); updateTreino(m.stats); }
+    if(m.inteligencia_global) updateInteligencia(m.inteligencia_global);
+    if(m.blame_report) updateBlame(m.blame_report);
+    if(m.bloco_relatorio) updateBlocoRelatorio(m.bloco_relatorio);
+    if(m.vereditos){
+      updateAgents(m.vereditos);
+      updateSignalMeta(m.vereditos, m.sinal);
+      _updateIaVeredito(m.vereditos);
+      updateTendencia(m.vereditos);
+      updateBlocoHeatmap(m.vereditos);
+      updateRight(m.vereditos, m.sinal, null);
+      updateConvergencia(m.vereditos, m.sinal, null);
+    }
+    // Restaura credenciais Telegram salvas no banco
+    if(m.telegram){
+      const tg = m.telegram;
+      if(tg.token)   { const el=$('tg-token');  if(el) el.value=tg.token; }
+      if(tg.chat_id) { const el=$('tg-chatid'); if(el) el.value=tg.chat_id; }
+      if(tg.modo){
+        const rEntrada = $('tg-modo-entrada');
+        const rAntec = $('tg-modo-antecedencia');
+        if(tg.modo === 'entrada' && rEntrada) { rEntrada.checked = true; toggleTgModo(); }
+        if(tg.modo === 'antecedencia' && rAntec) { rAntec.checked = true; toggleTgModo(); }
+      }
+      if(tg.antecedencia !== undefined){
+        const el = $('tg-antec');
+        if(el) { el.value = tg.antecedencia; const v=$('tg-antec-v'); if(v) v.textContent = tg.antecedencia; }
+      }
+      if(tg.eventos){
+        const ev = tg.eventos;
+        if(ev.entrar !== undefined) { const el=$('tg-entrar'); if(el) el.checked = ev.entrar; }
+        if(ev.resultado !== undefined) { const el=$('tg-resultado'); if(el) el.checked = ev.resultado; }
+        if(ev.gale !== undefined) { const el=$('tg-gale'); if(el) el.checked = ev.gale; }
+      }
+      if(tg.conectado){
+        const st=$('tg-status');
+        if(st){ st.style.color='var(--green)'; st.textContent='✅ Telegram ativo (credenciais restauradas)'; }
+      }
+    }
+    // Status Gemini
+    if(m.gemini){
+      const el=$('gemini-status');
+      if(el){
+        el.textContent = m.gemini.configurado ? '✅ Gemini configurado' : '⚠️ Chave não configurada';
+        el.style.color = m.gemini.configurado ? 'var(--green)' : 'var(--amber)';
+      }
+    }
+    // Restaura Modo Manutenção
+    if(m.estrategia && m.estrategia.modo_manutencao !== undefined){
+      const el = $('c-manutencao');
+      if(el) el.checked = m.estrategia.modo_manutencao;
+    }
+    // Restaura layout de widgets
+    if(m.widgets_config) aplicarWidgetsConfig(m.widgets_config);
+    return;
+  }
+  if(m.tipo==='config_ok'){
+    const alvo = m.alvo||1.5;
+    const stake = m.stake_base||10;
+    const maxG  = m.max_gale??2;
+    // Atualiza topbar
+    $('h-alvo').textContent = alvo.toFixed(2)+'x';
+    $('h-stake').textContent = 'R$'+stake;
+    // Sincroniza controles do drawer com valores confirmados pelo servidor
+    const ca=$('ca'), cav=$('cav'), cs2=$('cs2'), cg=$('cg'), cgv=$('cgv');
+    if(ca){ca.value=alvo; if(cav) cav.textContent=alvo.toFixed(2)+'x';}
+    if(cs2) cs2.value=stake;
+    if(cg){cg.value=maxG; if(cgv) cgv.textContent='G'+maxG;}
+    const prog = m.progressao||[];
+    const estratNome = m.estrategia?.nome||'martingale';
+    if(m.estrategia && m.estrategia.modo_manutencao !== undefined){
+      const el = $('c-manutencao');
+      if(el) el.checked = m.estrategia.modo_manutencao;
+    }
+    const progStr = prog.length ? prog.map((v,i)=>`G${i}=R$${v.toFixed(0)}`).join(' → ') : `G0..G${maxG}`;
+    chat('SYS','Sistema',`Config: alvo=${alvo}x | MAX G${maxG} | stake R$${stake} | ${estratNome} | ${progStr}`,'s','#60a5fa','#0f1e2e');
+    // Atualiza rbox com a progressão real
+    if(prog.length){
+      let h=`<b>Alvo: ${alvo}x | ${prog.length-1} gale(s)</b><br>`;
+      h+=`<b>Risco total: R$${prog.reduce((a,b)=>a+b,0).toFixed(0)}</b><br><br>`;
+      prog.forEach((v,i)=>{ h+=`G${i}: <b>R$${v.toFixed(2)}</b> → lucro R$${(v*(alvo-1)).toFixed(2)}<br>`; });
+      $('rbox').innerHTML=h;
+    }
+    calcR();
+    return;
+  }
+  if(m.tipo==='ia_update'){
+    if(m.vereditos){
+      updateAgents(m.vereditos);
+      updateSignalMeta(m.vereditos, m.sinal);
+      _updateIaVeredito(m.vereditos);
+      updateTendencia(m.vereditos);
+      updateRight(m.vereditos, m.sinal, null);
+      updateConvergencia(m.vereditos, m.sinal, null);
+    }
+    return;
+  }
+  if(m.tipo==='telegram_status'){ _handleTgStatus(m); return; }
+  if(m.tipo==='gemini_status'){  _handleGeminiStatus(m); return; }
+  if(m.tipo==='sessao'){if(m.sessao)updateSessao(m.sessao);return}
+  if(m.tipo==='round'){
+    updateFeed(m.historico||[]);
+    updateHdr(m.stats,m.round);
+    updateAction(m.acao,m.sessao);
+    updateAgents(m.vereditos||[]);
+    updateSignalMeta(m.vereditos, m.sinal);
+    _updateIaVeredito(m.vereditos||[]);
+    updateTendencia(m.vereditos||[]);
+    updateBlocoHeatmap(m.vereditos||[]);
+    if(m.bloco_relatorio) updateBlocoRelatorio(m.bloco_relatorio);
+    updateBlame(m.blame_report||null);
+    if(m.marketing_insight) updateMarketingInsight(m.marketing_insight);
+    updateRight(m.vereditos,m.sinal,m.round);
+    updateSessao(m.sessao);
+    updateTreino(m.stats);
+    buildChat(m.vereditos,m.sinal,m.round,m.acao);
+    updateConvergencia(m.vereditos, m.sinal, m.acao);
+    if(m.inteligencia_global) updateInteligencia(m.inteligencia_global);
+    
+    // Atualiza o Grafo LangGraph
+    const ds = m.sinal && m.sinal.dados || {};
+    updateLangGraph(ds._grafo_passos || [], ds._vetado || false, m.sinal && m.sinal.estado);
+
+    if(_synViz) _synViz.fireRound(m.vereditos, m.sinal&&m.sinal.estado, m.sinal&&m.sinal.score);
+  }
+  if(m.tipo==='retreino'){
+    const r=m.resultado||{};
+    $('tr-hist').textContent=r.n_historico ? r.n_historico.toLocaleString('pt-BR') : '—';
+    $('tr-vivo').textContent=r.n_ao_vivo ? r.n_ao_vivo.toLocaleString('pt-BR') : '—';
+    $('tr-total').textContent=r.n_total ? r.n_total.toLocaleString('pt-BR') : '—';
+    $('tr-data').textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    chat('SYS','Sistema',m.msg||'Retreino concluido','s','#60a5fa','#0f1e2e');
+  }
+  if(m.tipo==='marketing_insight'){
+    updateMarketingInsight(m);
+    // Também exibe no chat como notificação
+    chat('IA','Insight IA',m.texto||'','s','#818cf8','#0f0f2a');
+  }
+  if(m.tipo==='bloco_relatorio'){
+    updateBlocoRelatorio(m.relatorio||[]);
+  }
+}
+
+// ── Feed ──────────────────────────────────────────────────────────────────
+function bc(r){return r<1.5?'rbl':r<2?'rbm':r<5?'rbh':'rbs'}
+function updateFeed(h){
+  if(!h||!h.length) return;
+  $('feed').innerHTML=[...h].reverse().map(r=>`
+    <div class="rrow">
+      <div class="rb ${bc(r.result)}">${r.result.toFixed(2)}x</div>
+      <div>
+        <div style="font-size:10px;color:${r.result>=1.5?'var(--green)':'var(--red)'};font-weight:500">${r.type||''}</div>
+        <div class="rm">${(r.instant||'').substr(11,5)}</div>
+      </div>
+      <div class="rbl2">${r.bloco||''}</div>
+    </div>`).join('');
+}
+
+// ── Inteligência Global ──
+function updateInteligencia(g) {
+  if (!g) return;
+  if (g.top_blocos) {
+    $('tr-top-blocos').innerHTML = g.top_blocos.map(b => 
+      `<div class="ms" style="padding:2px 0"><span class="msl">${b.bloco}</span><span class="msv" style="color:var(--green)">${(b.taxa*100).toFixed(1)}% <span style="font-size:8px;color:var(--text3)">(n=${b.total})</span></span></div>`
+    ).join('');
+  }
+  if (g.top_padroes) {
+    $('tr-top-padroes').innerHTML = g.top_padroes.map(p => 
+      `<div class="ms" style="padding:2px 0;display:flex;flex-direction:column;align-items:flex-start;">
+        <span class="msl" style="font-size:8px;color:var(--blue);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.padrao)}</span>
+        <span class="msv" style="align-self:flex-end;color:var(--green);margin-top:-12px">${(p.taxa*100).toFixed(1)}% <span style="font-size:8px;color:var(--text3)">(n=${p.total})</span></span>
+      </div>`
+    ).join('');
+  }
+}
+
+// ── LangGraph Workflow Visualizer ──
+// Mapeamento: nós reais dos passos → id do elemento visual
+const LG_NODE_MAP = {
+  'START':               'start',
+  'risco_node':          'risco',
+  'veto_risco_node':     'risco',      // veto dispara no mesmo nó visual
+  'temporal_node':       'temporal',
+  'veto_temporal_node':  'temporal',
+  'analise_node':        'analise',
+  'consolidacao_node':   'consolidacao',
+  'END':                 'end',
+};
+// Nós que representam veto (para colorir em vermelho)
+const LG_VETO_NODES = new Set(['veto_risco_node','veto_temporal_node']);
+// Ordem das arestas: qual aresta acender ao passar entre nós consecutivos
+const LG_EDGE_ORDER = ['start','risco','temporal','analise','consolidacao','end'];
+
+function updateLangGraph(passos, vetado, estadoSinal) {
+  // Reset visual instantâneo
+  ['start','risco','temporal','analise','consolidacao','end'].forEach(n => {
+    const el = $('lgn-' + n);
+    if (el) el.className = 'lg-node';
+  });
+  for (let i = 1; i <= 5; i++) {
+    const el = $('lge-' + i);
+    if (el) el.className = 'lg-edge';
+  }
+
+  // Badge de estado — topbar do grafo E badge no header colapsável
+  const label = estadoSinal || 'STANDBY';
+  const cor = estadoSinal==='ENTRAR'?'var(--green)':estadoSinal==='ABORTAR'?'var(--red)':estadoSinal==='ATENCAO'?'var(--amber)':'var(--text2)';
+  const bg  = estadoSinal==='ENTRAR'?'var(--green-bg)':estadoSinal==='ABORTAR'?'var(--red-bg)':estadoSinal==='ATENCAO'?'var(--amber-bg)':'var(--bg3)';
+  [$('lg-status'), $('grafo-badge')].forEach(el => {
+    if(!el) return;
+    el.textContent = label;
+    el.style.color = cor;
+    el.style.background = bg;
+  });
+
+  if (!passos || !passos.length) return;
+
+  // Filtra nós válidos
+  const visualSteps = [];
+  passos.forEach(p => {
+    const visual = LG_NODE_MAP[p];
+    if (visual) {
+      visualSteps.push({id: visual, isVeto: LG_VETO_NODES.has(p)});
+    }
+  });
+
+  if(visualSteps.length === 0) return;
+
+  // Animação progressiva
+  let stepIdx = 0;
+  
+  function nextStep() {
+    if(stepIdx >= visualSteps.length) return;
+    
+    const curr = visualSteps[stepIdx];
+    const prev = stepIdx > 0 ? visualSteps[stepIdx-1] : null;
+    
+    // Acende a aresta entre o anterior e o atual
+    if (prev) {
+       const ordem = LG_EDGE_ORDER;
+       const i = ordem.indexOf(prev.id);
+       const j = ordem.indexOf(curr.id);
+       if(i !== -1 && j !== -1 && j > i) {
+           const edge = $('lge-' + j);
+           if (edge) edge.classList.add('active');
+       }
+    }
+    
+    // Pequeno atraso para a aresta acender antes do nó pulsar
+    setTimeout(() => {
+        const el = $('lgn-' + curr.id);
+        if (el) {
+          if (curr.isVeto) {
+            el.classList.add('veto');
+          } else if (curr.id === 'consolidacao' || curr.id === 'end') {
+            el.classList.add(estadoSinal==='ENTRAR'?'success':estadoSinal==='ABORTAR'?'veto':'active');
+          } else {
+            el.classList.add('active');
+          }
+        }
+        
+        stepIdx++;
+        window.lgAnimTimeout = setTimeout(nextStep, 350); // Delay até o próximo nó
+    }, 150);
+  }
+  
+  // Inicia animação limpando animações antigas
+  if(window.lgAnimTimeout) clearTimeout(window.lgAnimTimeout);
+  nextStep();
+}
+
+// ── Topbar ────────────────────────────────────────────────────────────────
+function updateHdr(s,r){
+  if(s){
+    $('h-rds').textContent=s.total_mem||0;
+    $('h-alvo').textContent=(s.alvo||1.5).toFixed(2)+'x';
+    $('h-stake').textContent='R$'+(s.stake_base||10);
+    $('mb').textContent=s.bloco_atual||'—';
+    $('mmem').textContent=s.total_mem||0;
+  }
+  if(r){
+    const c=r.result>=1.5?'var(--green)':'var(--red)';
+    $('h-last').textContent=r.result.toFixed(2)+'x';
+    $('h-last').style.color=c;
+    $('mtemp').textContent='★'.repeat(Math.min(r.temp||0,5))||'—';
+  }
+}
+
+// ══ AÇÃO PRINCIPAL ════════════════════════════════════════════════════════
+function updateAction(a, sess){
+  if(!a) return;
+  // Alertas sonoros
+  _dispararAlertaAcao(a.tipo);
+  // Alerta antecipado via convergência (streak vs gatilho)
+  const sd=sess&&sess.dados||{};
+  if(typeof sd.streak_atual==='number')_verificarAlertaAntecipado(sd.streak_atual,sd.gatilho||4);
+  const card=$('ac'), badge=$('acb');
+
+  // classe do card
+  const MAP={green:'ac-green',amber:'ac-amber',gray:'ac-gray',red:'ac-red'};
+  card.className='ac '+(
+    a.tipo==='entrar'?'ac-green':
+    a.tipo==='gale'?'ac-gale':
+    a.tipo==='atencao'?'ac-amber':
+    a.tipo==='abortar'?'ac-red':
+    a.tipo==='manutencao'?'ac-red':
+    a.tipo==='resultado'&&a.estado==='GREEN'?'ac-rg':
+    a.tipo==='resultado'&&a.estado==='STOP'?'ac-rs':
+    'ac-gray');
+
+  // aquecimento: barra de progresso
+  let warmupBar='';
+  if(a._warmup){
+    const pct=Math.round((1-a._warmup/20)*100);
+    warmupBar=`<div style="margin-top:6px;background:var(--bg3);border-radius:4px;height:4px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:var(--amber);transition:width .4s"></div></div>
+      <div style="font-size:8px;color:var(--amber);margin-top:3px">⏳ ${pct}% calibrado — faltam ${a._warmup} rounds ao vivo</div>`;
+  }
+
+  // badge com ping para entrar/gale
+  const showPing=['entrar','gale'].includes(a.tipo);
+  badge.innerHTML=showPing?`<span class="ping-dot"></span>${esc(a.estado)}`:esc(a.estado);
+
+  $('act').textContent=a.titulo;
+  $('acs').innerHTML=esc(a.sub)+warmupBar;
+  $('acas').style.display=(sess&&sess.ativa)?'flex':'none';
+
+  // log de ações — registra tudo exceto aguardar puro (sem _warmup)
+  const _ehWarmup = a.tipo === 'aguardar' && !a._warmup;
+  if(!_ehWarmup){
+    const t=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const icone = a.tipo==='entrar'?'🟢':a.tipo==='resultado'&&a.estado==='GREEN'?'✅':
+                  a.tipo==='resultado'&&a.estado==='STOP'?'❌':a.tipo==='gale'?'⚠️':
+                  a.tipo==='abortar'?'🔴':a.tipo==='atencao'?'🟡':a._warmup?'⏳':'⬜';
+    histAc.unshift({t,tipo:a.tipo,estado:a.estado,cor:a.cor,icone});
+    if(histAc.length>30)histAc.pop();
+    const cor = x => x.cor==='green'?'var(--green)':x.cor==='amber'?'var(--amber)':x.cor==='red'?'var(--red)':'var(--text2)';
+    $('hist').innerHTML = histAc.slice(0,12).map(x=>`
+      <div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:10px">${x.icone}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10px;font-weight:600;color:${cor(x)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.estado)}</div>
+          <div style="font-size:9px;color:var(--text3)">${x.t}</div>
+        </div>
+      </div>`).join('');
+  }
+}
+
+function updateScoreBar(score){
+  const pct=Math.round((score||0)*100);
+  const c=score>=0.55?'var(--green)':score>=0.45?'var(--amber)':'var(--text3)';
+  $('sf').style.width=pct+'%';$('sf').style.background=c;
+  $('sn').textContent=(score||0).toFixed(3);
+  $('h-score').textContent=(score||0).toFixed(3);
+  $('h-score').style.color=c;
+}
+
+// ── Sessão ────────────────────────────────────────────────────────────────
+function updateSessao(s){
+  if(!s) return;
+  const pl=s.pl_sessao||0;
+  $('spl').textContent='R$ '+pl.toFixed(2).replace('.',',');
+  $('spl').className='sess-pl '+(pl>0?'pos':pl<0?'neg':'zero');
+  $('sg-g').textContent=s.greens||0;
+  $('sg-s').textContent=s.stops||0;
+  $('sg-e').textContent=s.entradas||0;
+  $('sg-w').textContent=s.win_rate!=null?s.win_rate.toFixed(2)+'%':'—';
+  // Rodadas observadas e timestamp
+  if(s.rodadas_obs!=null){ const el=$('sg-r'); if(el) el.textContent=s.rodadas_obs; }
+  const tsEl=$('sess-ts');
+  if(tsEl) tsEl.textContent='⟳ '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  $('h-pl').textContent='R$'+(pl>=0?'+':'')+pl.toFixed(0);
+  $('h-pl').style.color=pl>0?'var(--green)':pl<0?'var(--red)':'var(--text2)';
+
+  // Progressão de gale dinâmica
+  const prog = s.progressao || [];
+  const galeProg = $('gale-prog');
+  const galeLabel = $('gale-label');
+  if (galeProg && prog.length) {
+    const nivelAtual = s.ativa ? s.gale_nivel : 0;
+    galeLabel.textContent = `PROGRESSÃO — Alvo ${s.alvo_atual}x (${prog.length-1} gale${prog.length>2?'s':''})`;
+    galeProg.innerHTML = prog.map((v,i) => {
+      const passado = s.ativa && i < nivelAtual;
+      const atual   = s.ativa && i === nivelAtual;
+      const bg = passado ? 'var(--red-bg)' : atual ? 'var(--green-bg)' : 'var(--bg2)';
+      const cor = passado ? 'var(--red)' : atual ? 'var(--green)' : 'var(--text2)';
+      const borda = atual ? '1px solid var(--green)' : passado ? '1px solid var(--red)' : '1px solid var(--border)';
+      return `<div style="border-radius:6px;padding:3px 7px;background:${bg};border:${borda};font-size:9px;color:${cor};font-weight:${atual?700:500}">
+        G${i}: R$${v.toFixed(0)}</div>`;
+    }).join('');
+  }
+
+  // pips
+  const max=s.max_gale||2, pips=$('gpips');
+  pips.innerHTML='';
+  for(let i=0;i<=max;i++){
+    const d=document.createElement('div');
+    d.className='gpip';
+    if(s.ativa){
+      if(i<s.gale_nivel)       d.classList.add('rd');
+      else if(i===s.gale_nivel) d.classList.add('ativo');
+    }
+    pips.appendChild(d);
+  }
+
+  // Estratégia label
+  let sEl=$('sess-estrat');
+  if(!sEl){
+    sEl=document.createElement('div');
+    sEl.id='sess-estrat';
+    sEl.style.cssText='font-size:9px;color:var(--text3);margin-top:3px;text-align:center';
+    pips.parentElement?.appendChild(sEl);
+  }
+  const estratMap={martingale:'Martingale (recuperação exata)',fibonacci:'Fibonacci',dalembert:"D'Alembert",masaniello:'Masaniello',flat:'Flat'};
+  sEl.textContent=estratMap[s.estrategia||'martingale']||s.estrategia||'';
+
+  // Painel de recuperação
+  _atualizarRecuperacao(s);
+}
+
+// ── Agentes ───────────────────────────────────────────────────────────────
+const AM={
+  streak:      {i:'&#128308;',n:'Streak',     r:'Sequencias',    c:'#ef4444',b:'#2a0f0f'},
+  margem:      {i:'&#128201;',n:'Margem',     r:'EMA/Velocidade',c:'#f59e0b',b:'#2a1f00'},
+  temporal:    {i:'&#8987;', n:'Temporal',   r:'Dia+Bloco 10m', c:'#60a5fa',b:'#0f1e2e'},
+  covariancia: {i:'&#128279;',n:'Cov',        r:'Padroes Cat',   c:'#a78bfa',b:'#1a0f2e'},
+  temperatura: {i:'&#127777;',n:'Temp',       r:'Calor do Jogo', c:'#fb7185',b:'#2a0f18'},
+  risco:       {i:'&#128737;',n:'Risco',      r:'EV/Banca',      c:'#2dd4bf',b:'#0f2a28'},
+  tendencia:   {i:'&#128200;',n:'Tendência', r:'Alta/Baixa 18r', c:'#34d399',b:'#0f2a1e'},
+  bloco:       {i:'&#128336;',n:'Horário',   r:'Blocos 15min',  c:'#fbbf24',b:'#2a1f00'},
+  padrao:      {i:'&#129504;',n:'Padrão',    r:'LSTM+KNN',      c:'#818cf8',b:'#0f0f2a'},
+  ia_gemini:   {i:'&#129302;',n:'IA Gemini',  r:'Raciocínio LLM',c:'#e9d5ff',b:'#2e1065'},
+  rtp:         {i:'&#127920;',n:'RTP Inv',    r:'Delta Greens',  c:'#10b981',b:'#064e3b'},
+};
+const AO=['rtp','streak','margem','temporal','covariancia','temperatura','risco','tendencia','bloco','padrao','ia_gemini'];
+
+function updateAgents(vv){
+  if(!vv||!vv.length) return;
+  const m={};vv.forEach(v=>m[v.agente]=v);
+  $('agrid').innerHTML=AO.map(n=>{
+    const v=m[n];if(!v)return'';
+    const a=AM[n]||{};
+    const pct=Math.round(v.score*100);
+    const c=v.score>=0.7?'var(--green)':v.score>=0.5?'var(--amber)':'var(--text3)';
+    const vc=v.estado==='ENTRAR'?'vE':v.estado==='ATENCAO'?'vA':v.estado==='ABORTAR'?'vX':'vW';
+    const ec=v.estado==='ENTRAR'?'eE':v.estado==='ATENCAO'?'eA':v.estado==='ABORTAR'?'eX':'';
+    return`<div class="ag ${ec}">
+      <div class="agh"><div class="agi" style="background:${a.b};color:${a.c}">${a.i||'?'}</div>
+      <div><div class="agn">${a.n}</div><div class="agr">${a.r}</div></div></div>
+      <div class="agbr"><div class="agb"><div class="agbf" style="width:${pct}%;background:${c}"></div></div>
+      <div class="ags" style="color:${c}">${v.score.toFixed(2)}</div></div>
+      <div class="agv ${vc}">${v.estado}</div>
+      <div class="agm">${esc(v.motivo)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Tendência de mercado ─────────────────────────────────────────────────
+function updateTendencia(vv){
+  if(!vv) return;
+  const m={};vv.forEach(v=>m[v.agente]=v);
+  const t=m['tendencia'];
+  if(!t||!t.dados) return;
+  const d=t.dados;
+  const fase=d.fase||'NEUTRA';
+  const cor=fase==='ALTA'?'var(--green)':fase==='BAIXA'?'var(--red)':'var(--amber)';
+  const emoji=fase==='ALTA'?'↑ ALTA':fase==='BAIXA'?'↓ BAIXA':'→ NEUTRA';
+  $('tend-badge').textContent=emoji;
+  $('tend-badge').style.color=cor;
+  $('tend-pct').textContent=`Alta: ${(d.pct_alta*100).toFixed(0)}% | Baixa: ${(d.pct_baixa*100).toFixed(0)}%`;
+  const mom=d.momentum||0;
+  $('tend-mom').textContent=mom>0.1?`↗ Momentum +${(mom*100).toFixed(0)}%`:mom<-0.1?`↘ Momentum ${(mom*100).toFixed(0)}%`:`Sem momentum`;
+  $('tend-desc').textContent=t.motivo||'';
+}
+
+// ── Blame report ─────────────────────────────────────────────────────────
+function updateBlame(blame){
+  if(!blame||!blame.length){return;}
+  const rows=blame.map(b=>{
+    const pct=Math.round(b.loss_rate*100);
+    const fillCls=pct<=40?'ok':'';
+    const modTxt=b.weight_mod<1?`⬇${b.weight_mod}x`:b.weight_mod>1?`⬆${b.weight_mod}x`:'=';
+    const modC=b.weight_mod<1?'var(--red)':b.weight_mod>1?'var(--green)':'var(--text3)';
+    return`<tr>
+      <td style="font-weight:600">${b.agente}</td>
+      <td>${b.wins}W/${b.losses}L</td>
+      <td><span class="blame-bar"><span class="blame-fill ${fillCls}" style="width:${pct}%"></span></span> ${pct}%</td>
+      <td style="color:${modC};font-weight:600">${modTxt}</td>
+    </tr>`;
+  }).join('');
+  $('blame-content').innerHTML=`<table class="blame-tbl">
+    <tr><th>Agente</th><th>W/L</th><th>Stop%</th><th>Peso</th></tr>${rows}
+  </table>`;
+}
+
+// ── Heatmap de blocos ────────────────────────────────────────────────────
+function updateBlocoHeatmap(vv){
+  if(!vv) return;
+  const m={};vv.forEach(v=>m[v.agente]=v);
+  const b=m['bloco'];
+  if(!b||!b.dados||!b.dados.bloco) return;
+
+  // Atualiza descrição do bloco atual no card
+  const el=$('bloco-heatmap');
+  if(!el) return;
+
+  // Recebe relatorio_blocos via payload separado ou usa dados do veredito
+  const d=b.dados;
+  const wrPct=d.wr!=null?(d.wr*100).toFixed(0)+'%':'?';
+  const cor=d.wr>=0.65?'var(--green)':d.wr>=0.50?'var(--amber)':'var(--red)';
+  el.innerHTML=`<div style="margin-bottom:4px">
+    <span style="font-weight:600">Agora: ${esc(d.bloco||'—')}</span>
+    <span style="color:${cor};font-weight:700;margin-left:6px">${wrPct}</span>
+    <span style="color:var(--text3);font-size:8px;margin-left:4px">(${d.total||0} entradas | G̅${(d.gale_medio||0).toFixed(1)})</span>
+  </div>
+  <div style="font-size:8px;color:var(--text3)">${esc(b.motivo||'')}</div>`;
+}
+
+function updateBlocoRelatorio(relatorio){
+  if(!relatorio||!relatorio.length) return;
+  const el=$('bloco-heatmap');
+  if(!el) return;
+
+  // Mini heatmap: uma célula por bloco, cor = WR
+  const cells=relatorio.map(b=>{
+    const pct=Math.round((b.wr||0)*100);
+    const bg=pct>=65?'#14532d':pct>=50?'#78350f':pct>=38?'#1e1b4b':'#3b0000';
+    const cor=pct>=65?'#4ade80':pct>=50?'#fbbf24':pct>=38?'#818cf8':'#f87171';
+    const tip=`${b.bloco}: WR=${pct}% (${b.total} entradas, G̅${b.gale_medio})`;
+    return`<div title="${esc(tip)}" style="background:${bg};border-radius:4px;padding:3px 5px;cursor:default">
+      <div style="font-size:8px;font-weight:700;color:${cor}">${b.bloco}</div>
+      <div style="font-size:9px;color:${cor}">${pct}%</div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px">${cells}</div>`;
+}
+
+// ── Marketing Insight ─────────────────────────────────────────────────────
+function updateMarketingInsight(m){
+  if(!m) return;
+  const txt=$('marketing-txt');
+  const gifEl=$('marketing-gif');
+  const gifImg=$('marketing-gif-img');
+  if(txt) txt.textContent=m.texto||'';
+  if(m.gif&&gifEl&&gifImg){
+    gifImg.src=m.gif;
+    gifEl.style.display='block';
+  }
+}
+
+function pedirInsight(){
+  // Solicita ao servidor enviar um insight via WS ou busca no servidor
+  send({tipo:'solicitar_insight'});
+}
+
+// ── Painel direito ────────────────────────────────────────────────────────
+function updateRight(vv,sinal,rd){
+  if(sinal) updateScoreBar(sinal.score);
+  if(!vv) return;
+  const m={};vv.forEach(v=>m[v.agente]=v);
+
+  const mg=m['margem'];
+  if(mg&&mg.dados){
+    const r=mg.dados.ema_rapida,l=mg.dados.ema_lenta;
+    if(r!=null){
+      $('er').textContent=r.toFixed(3)+'x';
+      $('el').textContent=((l)||0).toFixed(3)+'x';
+      $('erf').style.width=Math.min(r/3.5*100,100)+'%';
+      $('elf').style.width=Math.min((l||0)/3.5*100,100)+'%';
+      $('erf').style.background=r<1.2?'var(--red)':r<1.45?'var(--amber)':'var(--green)';
+      $('em-st').textContent=mg.dados.estado_mercado||'';
+    }
+  }
+
+  const sk=m['streak'];
+  if(sk&&sk.dados){
+    const st=sk.dados.streak||0,gt=sk.dados.gatilho_dinamico||4;
+    $('stn').textContent=st;
+    $('gtv').textContent=gt;
+    $('stf').style.width=Math.min(st/gt*100,100)+'%';
+    $('stn').style.color=st>=gt?'var(--red)':st>=gt*.6?'var(--amber)':'var(--text3)';
+  }
+
+  const cv=m['covariancia'];
+  if(cv&&cv.dados){
+    $('ptxt').textContent=cv.dados.padrao||'—';
+    const p=cv.dados.prob_condicional;
+    if(p!=null){
+      $('pval').textContent=(p*100).toFixed(1)+'%';
+      $('pval').style.color=p>=0.65?'var(--green)':p>=0.5?'var(--amber)':'var(--text3)';
+    }
+  }
+
+  const rs=m['risco'];
+  if(rs&&rs.dados){
+    const d=rs.dados;
+    if(d.ev!=null){
+      $('rs-ev').textContent='R$ '+d.ev.toFixed(2);
+      $('rs-ev').style.color=d.ev>0?'var(--green)':'var(--red)';
+      $('rs-acerto').textContent=(d.p_acerto_ciclo*100).toFixed(1)+'%';
+      $('rs-ruina').textContent=(d.p_ruina_ciclo*100).toFixed(1)+'%';
+      $('rs-ruina').style.color=d.p_ruina_ciclo>0.08?'var(--red)':'var(--text2)';
+      $('rs-risco').textContent='R$ '+d.risco_total.toFixed(0);
+      // WR Histórico (30k treino)
+      if(d.prob_historica!=null){
+        $('rs-wrhist').textContent=(d.prob_historica*100).toFixed(1)+'%';
+        $('rs-wrhist').style.color=d.prob_historica>=0.55?'var(--green)':d.prob_historica>=0.45?'var(--amber)':'var(--red)';
+      }
+      // WR Ao Vivo (buffer 150)
+      if(d.prob_memoria!=null){
+        $('rs-wrvivo').textContent=(d.prob_memoria*100).toFixed(1)+'%';
+        $('rs-wrvivo').style.color=d.prob_memoria>=0.55?'var(--green)':d.prob_memoria>=0.45?'var(--amber)':'var(--red)';
+      }
+      // WR Combinado (60% hist + 40% vivo)
+      $('rs-winrecente').textContent=(d.prob_recente*100).toFixed(1)+'%';
+      $('rs-winrecente').style.color=d.prob_recente>=0.55?'var(--green)':d.prob_recente>=0.45?'var(--amber)':'var(--red)';
+    }
+  }
+
+  if(vv){
+    const vo=vv.filter(v=>v.estado==='ENTRAR').length;
+    $('mvot').textContent=vo+'/6';
+    $('mvot').style.color=vo>=2?'var(--green)':'var(--text2)';
+  }
+
+  // Temperatura no agente dedicado
+  const ta=m['temperatura'];
+  if(ta&&ta.dados){
+    const tc=ta.dados.temp_atual;
+    $('mtemp').textContent='★'.repeat(Math.min(tc||0,5))||'—';
+    $('mtemp').style.color=tc>=4?'var(--green)':tc>=3?'var(--amber)':'var(--red)';
+  } else if(rd) {
+    $('mtemp').textContent='★'.repeat(Math.min(rd.temp||0,5))||'—';
+  }
+
+  // Falsos positivos consecutivos
+  const fp=sinal&&sinal.dados?sinal.dados._falsos_pos||0:0;
+  $('mfp').textContent=fp;
+  $('mfp').style.color=fp>=3?'var(--red)':fp>=1?'var(--amber)':'var(--green)';
+}
+
+// ── Treinamento provenance ─────────────────────────────────────────────────
+function updateTreino(stats){
+  if(!stats) return;
+  const cal=stats.calibracao||{};
+  if(stats.ultimo_retreino) $('tr-data').textContent=stats.ultimo_retreino;
+  if(stats.n_hist_treino!=null) $('tr-hist').textContent=stats.n_hist_treino.toLocaleString('pt-BR');
+  if(stats.n_vivo_treino!=null){
+    $('tr-vivo').textContent=stats.n_vivo_treino.toLocaleString('pt-BR');
+    const total=(stats.n_hist_treino||0)+(stats.n_vivo_treino||0);
+    $('tr-total').textContent=total.toLocaleString('pt-BR');
+  }
+  if(cal.total_sinais!=null){
+    $('tr-wr').textContent=cal.taxa_acerto!=null?(cal.taxa_acerto*100).toFixed(1)+'% ('+cal.total_sinais+' sinais)':'—';
+    $('tr-wr').style.color=cal.taxa_acerto>=0.65?'var(--green)':cal.taxa_acerto>=0.5?'var(--amber)':'var(--red)';
+  }
+}
+
+function solicitarRetreino(){
+  send({tipo:'retreinar'});
+  chat('SYS','Sistema','Retreino manual solicitado...','s','#60a5fa','#0f1e2e');
+}
+
+async function uploadXlsx(input){
+  const file = input.files[0];
+  if(!file) return;
+  const st = $('xlsx-status');
+  const lbl = $('xlsx-label');
+  st.style.color='var(--text2)';
+  st.textContent='⏳ Enviando '+file.name+'...';
+  lbl.style.pointerEvents='none';
+  lbl.style.opacity='0.5';
+  try{
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/upload', {method:'POST', body:fd});
+    const data = await res.json();
+    if(data.ok){
+      st.style.color='var(--green)';
+      st.textContent=`✅ ${data.inseridas} novas | ${data.duplicadas} já existiam`;
+      chat('SYS','Sistema',`Sincronização XLSX: ${data.msg}`,'s','#22c55e','#0f2e1a');
+    } else {
+      st.style.color='var(--red)';
+      st.textContent='❌ Erro: '+data.erro;
+    }
+  } catch(e){
+    st.style.color='var(--red)';
+    st.textContent='❌ Falha na conexão: '+e.message;
+  } finally {
+    lbl.style.pointerEvents='';
+    lbl.style.opacity='';
+    input.value='';  // permite re-upload do mesmo arquivo
+  }
+}
+
+// ══ DRAWER TABS ═══════════════════════════════════════════════════════════
+function showTab(n){
+  [0,1,2,3,4].forEach(i=>{
+    $('tab-'+i).style.display=i===n?'block':'none';
+    $('tab-btn-'+i).classList.toggle('tab-active',i===n);
+  });
+}
+
+// ── Seções colapsáveis ───────────────────────────────────────────────────────
+function toggleCollap(id){
+  const hdr  = document.querySelector(`#collap-${id} .collap-hdr`);
+  const body = $('collap-body-' + id);
+  const arrow = hdr && hdr.querySelector('.ch-arrow');
+  if(!body) return;
+  const isOpen = body.classList.toggle('open');
+  if(hdr)   hdr.classList.toggle('open', isOpen);
+  if(arrow) arrow.style.transform = isOpen ? 'rotate(180deg)' : '';
+  // Sinapse: reinicializa o canvas quando abre pela primeira vez
+  if(id === 'sinapse' && isOpen && !_synViz) initSynapse();
+}
+
+// ── Chip de tendência no topbar ───────────────────────────────────────────────
+function updateTopbarTend(fase){
+  const chip = $('h-tend-chip');
+  if(!chip) return;
+  const cls = fase==='ALTA'?'alta':fase==='BAIXA'?'baixa':'neutra';
+  const ico  = fase==='ALTA'?'↑':fase==='BAIXA'?'↓':'—';
+  chip.className = `tend-chip ${cls}`;
+  chip.textContent = `${ico} ${fase||'NEUTRA'}`;
+}
+
+// ── Signal-meta (prob, tendência, bloco WR) ──────────────────────────────────
+function updateSignalMeta(vereditos, sinal){
+  // Probabilidade: pega do agente risco
+  const risco = (vereditos||[]).find(v=>v.agente==='risco');
+  const prob  = risco ? (risco.score*100).toFixed(1)+'%' : '—';
+  const probEl = $('sm-prob');
+  if(probEl){ probEl.textContent = prob; probEl.style.color = risco&&risco.score>=0.6?'var(--green)':risco&&risco.score<0.4?'var(--red)':'var(--amber)'; }
+
+  // Tendência: pega do agente tendencia
+  const tend = (vereditos||[]).find(v=>v.agente==='tendencia');
+  const tendEl = $('sm-tend');
+  if(tendEl && tend){
+    const fase = (tend.motivo||'').match(/ALTA|BAIXA|NEUTRA/)?.[0] || tend.estado;
+    tendEl.textContent = fase||tend.estado;
+    tendEl.style.color = fase==='ALTA'?'var(--green)':fase==='BAIXA'?'var(--red)':'var(--text2)';
+    updateTopbarTend(fase);
+  }
+
+  // Bloco WR: pega do agente bloco
+  const bloco = (vereditos||[]).find(v=>v.nome==='bloco');
+  const blocoEl = $('sm-bloco');
+  if(blocoEl && bloco && bloco.dados && bloco.dados.wr != null){
+    const wr = (bloco.dados.wr*100).toFixed(0)+'%';
+    blocoEl.textContent = wr;
+    blocoEl.style.color = bloco.dados.wr>=0.65?'var(--green)':bloco.dados.wr<0.40?'var(--red)':'var(--amber)';
+  } else if(blocoEl){ blocoEl.textContent = '—'; }
+}
+
+// ══ ESTRATÉGIA ════════════════════════════════════════════════════════════
+// ── Densidade e colunas de cards ────────────────────────────────────────────
+function setDensity(d){
+  document.documentElement.setAttribute('data-density', d);
+  document.querySelectorAll('.dbtn[id^="dbtn-"]').forEach(b=>b.classList.remove('active'));
+  const btn = document.getElementById('dbtn-'+d);
+  if(btn) btn.classList.add('active');
+  localStorage.setItem('ciq_density', d);
+}
+
+function setCols(n){
+  document.documentElement.style.setProperty('--agrid-cols', n);
+  document.querySelectorAll('.dbtn[id^="cbtn-"]').forEach(b=>b.classList.remove('active'));
+  const btn = document.getElementById('cbtn-'+n);
+  if(btn) btn.classList.add('active');
+  localStorage.setItem('ciq_cols', n);
+}
+
+// Restaura preferências salvas
+(function(){
+  const d = localStorage.getItem('ciq_density') || 'md';
+  const c = parseInt(localStorage.getItem('ciq_cols') || '4');
+  setDensity(d);
+  setCols(c);
+})();
+
+document.addEventListener('DOMContentLoaded',()=>{
+  // Masaniello params toggle
+  $('c-estrat').addEventListener('change',()=>{
+    const mp=$('masaniello-params');
+    mp.style.display=$('c-estrat').value==='masaniello'?'flex':'none';
+    calcR();
+  });
+  // Recuperação parcial
+  document.querySelectorAll('input[name="rec"]').forEach(r=>{
+    r.addEventListener('change',()=>{
+      $('rec-pct-wrap').style.display=r.value==='parcial'&&r.checked?'block':'none';
+    });
+  });
+  // Volume label (escala 0-3)
+  $('alerta-vol').addEventListener('input',()=>{
+    $('alerta-vol-v').textContent=Math.round($('alerta-vol').value/3*100)+'%';
+  });
+  calcR();
+});
+
+function _stakesPreview(){
+  const base=parseFloat($('cs2').value)||10;
+  const g=parseInt($('cg').value)||2;
+  const strat=$('c-estrat').value;
+  const customRaw=$('c-custom')?.value||'';
+  const custom=customRaw?customRaw.split(',').map(Number):[];
+  const FIB=[1,1,2,3,5,8,13,21];
+  function stakeNivel(n){
+    if(custom.length>n&&custom[n]>0)return custom[n];
+    if(strat==='flat')return base;
+    if(strat==='dalembert')return base*(1+n);
+    if(strat==='fibonacci')return base*FIB[Math.min(n,7)];
+    if(strat==='masaniello'){
+      const sn=parseInt($('c-masn')?.value||10);
+      const st=parseFloat($('c-mast')?.value||20);
+      return Math.round((st/(sn*0.6))*(1+n*0.25)*100)/100;
+    }
+    return base*(2**n); // martingale
+  }
+  return Array.from({length:g+1},(_,i)=>stakeNivel(i));
+}
+
+function calcR(){
+  const a=parseFloat($('ca').value)||1.5;
+  const g=parseInt($('cg').value)||2;
+  const stakes=_stakesPreview();
+  const risco=stakes.reduce((s,v)=>s+v,0);
+  let h=`<b>Risco máx: R$${risco.toFixed(0)}</b><br>`;
+  stakes.forEach((s,i)=>h+=`G${i}: R$${s.toFixed(0)} &rarr; lucro R$${(s*(a-1)).toFixed(0)}<br>`);
+  $('rbox').innerHTML=h;
+}
+
+function applyC(){
+  const a=parseFloat($('ca').value);
+  const s=parseFloat($('cs2').value);
+  const g=parseInt($('cg').value);
+  const strat=$('c-estrat').value;
+  const customRaw=$('c-custom')?.value||'';
+  const custom=customRaw?customRaw.split(',').map(Number):[];
+  const recTipo=document.querySelector('input[name="rec"]:checked')?.value||'total';
+  const meta=recTipo==='total'?100:parseInt($('rec-pct')?.value||50);
+  const masN=parseInt($('c-masn')?.value||10);
+  const masT=parseFloat($('c-mast')?.value||20);
+  const manut=$('c-manutencao')?.checked ?? false;
+  send({tipo:'config',alvo:a,stake_base:s,max_gale:g});
+  send({tipo:'config_estrategia',nome:strat,recuperacao:recTipo,meta_recuperar:meta,
+        session_n:masN,session_t:masT,stakes_custom:custom,
+        alerta_antecedencia:parseInt($('alerta-ante')?.value||0),
+        modo_manutencao:manut});
+  closeD();
+}
+
+// ══ SESSÃO — indicador de recuperação ═════════════════════════════════════
+function _atualizarRecuperacao(s){
+  let el=$('rec-panel');
+  if(!el){
+    el=document.createElement('div');
+    el.id='rec-panel';
+    el.style.cssText='margin-top:6px;padding:6px 8px;background:var(--amber-bg);border:1px solid var(--amber);border-radius:6px;font-size:9.5px;display:none';
+    $('ac')?.after(el);
+  }
+  if(s&&s.modo_recuperacao&&s.deficit>0){
+    const pct=Math.min(s.recuperado/s.meta_recuperar*100,100)||0;
+    el.style.display='block';
+    el.innerHTML=`🔄 <b>Modo recuperação</b> — Déficit: R$${s.deficit.toFixed(2)}<br>
+      <div class="rec-bar"><div class="rec-fill" style="width:${pct.toFixed(0)}%"></div></div>
+      Recuperado: R$${s.recuperado.toFixed(2)} / R$${s.meta_recuperar.toFixed(2)} (${pct.toFixed(0)}%)`;
+  } else {
+    el.style.display='none';
+  }
+}
+
+// ══ ALERTAS SONOROS ════════════════════════════════════════════════════════
+let _audioCtx=null;
+function _ctx(){
+  if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(_audioCtx.state==='suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+
+// Compressor mestre — evita clipping em volume alto
+function _masterGain(vol){
+  const c=_ctx();
+  const g=c.createGain();
+  const comp=c.createDynamicsCompressor();
+  comp.threshold.value=-6;comp.knee.value=3;comp.ratio.value=4;
+  g.gain.value=vol;
+  g.connect(comp);comp.connect(c.destination);
+  return {ctx:c,gain:g};
+}
+
+function _osc(freq,type,start,dur,gainNode,ctx,gainVal,fadeOut){
+  const o=ctx.createOscillator();
+  const g=ctx.createGain();
+  o.type=type;o.frequency.value=freq;
+  g.gain.setValueAtTime(gainVal,ctx.currentTime+start);
+  if(fadeOut) g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+start+dur);
+  o.connect(g);g.connect(gainNode);
+  o.start(ctx.currentTime+start);
+  o.stop(ctx.currentTime+start+dur+(fadeOut?0:0.02));
+}
+
+// ── CAMPAINHA (sino real com harmônicos) ─────────────────────────────────
+function _tocarCampainha(vol,reps){
+  const {ctx,gain}=_masterGain(vol);
+  const freqs=[800,1600,2400,3200]; // harmônicos do sino
+  const gains=[1, 0.6, 0.3, 0.15];
+  const interval=0.55;
+  for(let r=0;r<reps;r++){
+    const t=r*interval;
+    freqs.forEach((f,i)=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type=i===0?'sine':'sine';o.frequency.value=f;
+      g.gain.setValueAtTime(gains[i],ctx.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.45);
+      o.connect(g);g.connect(gain.gain?gain:gain);
+      // reuse: connect to master gain node's destination
+    });
+    // Reconstruct per rep for cleanliness
+    [800,1600,2400,3200].forEach((f,i)=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type='sine';o.frequency.setValueAtTime(f,ctx.currentTime+t);
+      o.frequency.exponentialRampToValueAtTime(f*0.97,ctx.currentTime+t+0.4);
+      g.gain.setValueAtTime([1,0.6,0.3,0.12][i]*vol,ctx.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.48);
+      const comp=ctx.createDynamicsCompressor();
+      o.connect(g);g.connect(comp);comp.connect(ctx.destination);
+      o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+0.55);
+    });
+  }
+}
+
+// ── SIRENE (varredura de frequência) ─────────────────────────────────────
+function _tocarSirene(vol,reps){
+  const c=_ctx();
+  const g=c.createGain();g.gain.value=vol;
+  const comp=c.createDynamicsCompressor();
+  g.connect(comp);comp.connect(c.destination);
+  const ciclo=0.5;
+  for(let r=0;r<reps*2;r++){
+    const o=c.createOscillator(),og=c.createGain();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(r%2===0?800:1200,c.currentTime+r*ciclo);
+    o.frequency.linearRampToValueAtTime(r%2===0?1200:800,c.currentTime+(r+1)*ciclo);
+    og.gain.setValueAtTime(0.8,c.currentTime+r*ciclo);
+    og.gain.setValueAtTime(0.001,c.currentTime+(r+1)*ciclo-0.01);
+    o.connect(og);og.connect(g);
+    o.start(c.currentTime+r*ciclo);o.stop(c.currentTime+(r+1)*ciclo);
+  }
+}
+
+// ── CASINO SLOT (sequência ascendente festiva) ────────────────────────────
+function _tocarCasino(vol,reps){
+  const c=_ctx();
+  const notas=[523,659,784,1047,1319]; // C5 E5 G5 C6 E6
+  for(let r=0;r<reps;r++){
+    notas.forEach((f,i)=>{
+      const t=r*0.7+i*0.1;
+      const o=c.createOscillator(),g=c.createGain();
+      o.type='square';o.frequency.value=f;
+      g.gain.setValueAtTime(vol*0.4,c.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+t+0.18);
+      const comp=c.createDynamicsCompressor();
+      o.connect(g);g.connect(comp);comp.connect(c.destination);
+      o.start(c.currentTime+t);o.stop(c.currentTime+t+0.2);
+    });
+  }
+}
+
+// ── BUZINA GRAVE (horn industrial) ──────────────────────────────────────
+function _tocarHorn(vol,reps){
+  const c=_ctx();
+  const interval=0.65;
+  for(let r=0;r<reps;r++){
+    const t=r*interval;
+    const o=c.createOscillator(),g=c.createGain();
+    const dist=c.createWaveShaper();
+    // curva de distorção suave
+    const curve=new Float32Array(256);
+    for(let i=0;i<256;i++){const x=i*2/256-1;curve[i]=x<0?-Math.pow(-x,0.5):Math.pow(x,0.5);}
+    dist.curve=curve;
+    o.type='sawtooth';o.frequency.value=110; // A2 grave
+    g.gain.setValueAtTime(vol*1.2,c.currentTime+t);
+    g.gain.setValueAtTime(vol*1.2,c.currentTime+t+0.3);
+    g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+t+0.55);
+    const comp=c.createDynamicsCompressor();
+    o.connect(dist);dist.connect(g);g.connect(comp);comp.connect(c.destination);
+    o.start(c.currentTime+t);o.stop(c.currentTime+t+0.6);
+    // harmônico
+    const o2=c.createOscillator(),g2=c.createGain();
+    o2.type='sawtooth';o2.frequency.value=220;
+    g2.gain.setValueAtTime(vol*0.6,c.currentTime+t);
+    g2.gain.exponentialRampToValueAtTime(0.001,c.currentTime+t+0.5);
+    o2.connect(g2);g2.connect(comp);
+    o2.start(c.currentTime+t);o2.stop(c.currentTime+t+0.55);
+  }
+}
+
+// ── DING METÁLICO ────────────────────────────────────────────────────────
+function _tocarDing(vol,reps){
+  const c=_ctx();
+  const interval=0.4;
+  for(let r=0;r<reps;r++){
+    const t=r*interval;
+    [1047,2093,3136].forEach((f,i)=>{
+      const o=c.createOscillator(),g=c.createGain();
+      o.type='sine';o.frequency.value=f;
+      g.gain.setValueAtTime(vol*(1-i*0.2),c.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+t+0.35-i*0.05);
+      const comp=c.createDynamicsCompressor();
+      o.connect(g);g.connect(comp);comp.connect(c.destination);
+      o.start(c.currentTime+t);o.stop(c.currentTime+t+0.4);
+    });
+  }
+}
+
+// ── BEEP simples (fallback) ──────────────────────────────────────────────
+function _tocarBeep(vol,reps){
+  const c=_ctx();
+  for(let r=0;r<reps;r++){
+    const o=c.createOscillator(),g=c.createGain(),comp=c.createDynamicsCompressor();
+    o.type='sine';o.frequency.value=880;
+    g.gain.setValueAtTime(vol,c.currentTime+r*0.35);
+    g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+r*0.35+0.28);
+    o.connect(g);g.connect(comp);comp.connect(c.destination);
+    o.start(c.currentTime+r*0.35);o.stop(c.currentTime+r*0.35+0.3);
+  }
+}
+
+function tocarAlerta(tipo){
+  if(!$('alerta-ativo').checked) return;
+  const vol=parseFloat($('alerta-vol').value)||1.5;
+  const reps=parseInt($('alerta-rep')?.value)||3;
+  try{
+    if(tipo==='campainha') _tocarCampainha(vol,reps);
+    else if(tipo==='sirene')  _tocarSirene(vol,reps);
+    else if(tipo==='casino')  _tocarCasino(vol,reps);
+    else if(tipo==='horn')    _tocarHorn(vol,reps);
+    else if(tipo==='ding')    _tocarDing(vol,reps);
+    else                      _tocarBeep(vol,reps);
+  }catch(e){console.warn('Alerta erro:',e);}
+}
+
+let _alertaPendente=null;
+function _verificarAlertaAntecipado(streakAtual,gatilho){
+  const ante=parseInt($('alerta-ante')?.value||0);
+  if(ante===0||!$('alerta-ativo')?.checked)return;
+  const faltam=gatilho-streakAtual;
+  if(faltam<=ante&&faltam>0){
+    if(_alertaPendente!==streakAtual){
+      _alertaPendente=streakAtual;
+      tocarAlerta($('alerta-tipo').value);
+      chat('SYS','Alerta',`⏰ Sinal em ${faltam} round(s)!`,'s','#f59e0b','#251c00');
+    }
+  } else {
+    _alertaPendente=null;
+  }
+}
+
+function _dispararAlertaAcao(tipo){
+  if(!$('alerta-ativo')?.checked)return;
+  if(tipo==='entrar') tocarAlerta($('alerta-tipo').value);
+  else if(tipo==='atencao'&&$('alerta-atencao')?.checked) tocarAlerta('beep');
+  else if(tipo==='gale'&&$('alerta-gale')?.checked) tocarAlerta('duplo');
+  else if(tipo==='resultado'&&$('alerta-stop')?.checked) tocarAlerta('alarm');
+}
+
+// ══ BACKTEST ═══════════════════════════════════════════════════════════════
+async function rodarBacktest(){
+  const btn=event.target;
+  btn.textContent='⏳ Rodando...';btn.disabled=true;
+  $('bt-result').style.display='none';
+  try{
+    const body={
+      alvo:parseFloat($('bt-alvo').value)||1.5,
+      max_gale:parseInt($('bt-gale').value)||2,
+      dia:$('bt-dia').value||'',
+      bloco:$('bt-bloco').value||'',
+      hora_inicio:$('bt-hi').value||'',
+      hora_fim:$('bt-hf').value||'',
+    };
+    const res=await fetch('/backtest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await res.json();
+    if(!d.ok){$('bt-result').style.display='block';$('bt-result').innerHTML=`<span style="color:var(--red)">❌ ${d.erro}</span>`;return;}
+    const corPL=d.pl_total>=0?'var(--green)':'var(--red)';
+    let html=`<div style="font-weight:600;margin-bottom:6px">Resultado: ${d.n_rodadas} rodadas | ${d.n_ciclos} ciclos</div>`;
+    html+=`<div class="bt-row"><span>Taxa de acerto</span><b>${d.taxa_acerto}%</b></div>`;
+    html+=`<div class="bt-row"><span>P&L total</span><b style="color:${corPL}">R$${d.pl_total.toFixed(2)}</b></div>`;
+    html+=`<div class="bt-row"><span>Max sequência de stops</span><b style="color:var(--red)">${d.max_loss_streak}</b></div>`;
+    // Por hora
+    if(Object.keys(d.por_hora||{}).length>0){
+      html+=`<div style="font-weight:600;margin:8px 0 4px">Por hora:</div><div class="bt-hour-grid">`;
+      Object.entries(d.por_hora).forEach(([h,v])=>{
+        const c=v.taxa>=60?'var(--green)':v.taxa>=45?'var(--amber)':'var(--red)';
+        html+=`<div class="bt-hour-cell"><div style="font-weight:600">${h}</div><div style="color:${c}">${v.taxa}%</div><div style="color:var(--text3)">R$${v.pl}</div></div>`;
+      });
+      html+=`</div>`;
+    }
+    $('bt-result').innerHTML=html;
+    $('bt-result').style.display='block';
+  }catch(e){
+    $('bt-result').style.display='block';
+    $('bt-result').innerHTML=`<span style="color:var(--red)">❌ ${e.message}</span>`;
+  }finally{btn.textContent='▶ Rodar backtest';btn.disabled=false;}
+}
+
+// ══ TELEGRAM ═══════════════════════════════════════════════════════════════
+function toggleTgModo(){
+  const modo = document.querySelector('input[name="tg-modo"]:checked')?.value || 'entrada';
+  $('tg-antec-box').style.display = modo === 'antecedencia' ? 'block' : 'none';
+}
+
+function salvarTelegram(){
+  const token  = $('tg-token').value.trim();
+  const chatId = $('tg-chatid').value.trim();
+  if(!token || !chatId){$('tg-status').textContent='Preencha token e Chat ID'; return;}
+
+  const modo   = document.querySelector('input[name="tg-modo"]:checked')?.value || 'entrada';
+  const antec  = parseInt($('tg-antec').value) || 2;
+
+  const eventos = {
+    entrar:    $('tg-entrar')?.checked ?? true,
+    resultado: $('tg-resultado')?.checked ?? true,
+    gale:      $('tg-gale')?.checked ?? false,
+    atencao:   modo === 'antecedencia',
+  };
+
+  const intervalo = parseInt($('tg-intervalo')?.value) || 30;
+
+  $('tg-status').textContent = '🔄 Conectando...';
+  send({
+    tipo:                'telegram_config',
+    token,
+    chat_id:             chatId,
+    telegram_modo:       modo,
+    alerta_antecedencia: antec,
+    telegram_eventos:    eventos,
+  });
+  // Salva intervalo periódico separadamente
+  send({ tipo: 'config_intervalo_stats', minutos: intervalo });
+}
+
+function enviarStatsTelegram(){ send({tipo:'telegram_stats'}) }
+
+// Resposta de status do Telegram
+function _handleTgStatus(m){
+  const el = $('tg-status');
+  if(!el) return;
+  el.textContent = m.msg || '';
+  el.style.color = m.ok ? 'var(--green)' : 'var(--red)';
+}
+
+// ══ GEMINI / IA ════════════════════════════════════════════════════════════
+function salvarGemini(){
+  const key = $('gemini-key')?.value.trim();
+  if(!key){ const el=$('gemini-status'); if(el){el.textContent='Cole a chave antes de salvar';el.style.color='var(--red)';}return; }
+  send({tipo:'config_gemini', api_key: key});
+  const el=$('gemini-status'); if(el){el.textContent='🔄 Salvando...';el.style.color='var(--text2)';}
+}
+
+function _handleGeminiStatus(m){
+  const el=$('gemini-status');
+  if(!el) return;
+  el.textContent = m.msg||'';
+  el.style.color = m.ok ? 'var(--green)' : 'var(--red)';
+}
+
+function _updateIaVeredito(vereditos){
+  const el=$('ia-veredito-display');
+  if(!el) return;
+  const ia=(vereditos||[]).find(v=>v.agente==='ia_gemini');
+  if(!ia){ el.textContent='Agente IA: sem veredito neste round'; return; }
+  const cor=ia.estado==='ENTRAR'?'var(--green)':ia.estado==='ABORTAR'?'var(--red)':ia.estado==='ATENCAO'?'var(--amber)':'var(--text2)';
+  el.innerHTML=`<span style="color:${cor};font-weight:700">${ia.estado}</span> — score ${(ia.score||0).toFixed(3)}<br><span style="color:var(--text3)">${esc(ia.motivo||'')}</span>`;
+}
+
+// ══ CONVERGÊNCIA DOS AGENTES ═══════════════════════════════════════════════
+// ── Convergência dos Agentes ──────────────────────────────────────────────
+const CONV_COLORS = {
+  ENTRAR:  {fill:'var(--green)',  tag:'te'},
+  ATENCAO: {fill:'var(--amber)',  tag:'ta'},
+  AGUARDAR:{fill:'var(--text3)', tag:'tw'},
+  ABORTAR: {fill:'var(--red)',    tag:'tx'},
+};
+
+function updateConvergencia(vereditos, sinal, acao) {
+  if (!vereditos || !vereditos.length) return;
+
+  // Score badge global
+  const score = sinal && sinal.score ? sinal.score : 0;
+  const limiar = sinal && sinal.dados && sinal.dados._limiar_efetivo || 0.55;
+  const badge = $('conv-score');
+  const pct = Math.round(score / limiar * 100);
+  badge.textContent = `Score ${score.toFixed(3)} — ${pct}% do limiar`;
+  badge.style.background = score >= limiar ? 'var(--green-bg)' : score >= 0.40 ? 'var(--amber-bg)' : 'var(--bg3)';
+  badge.style.color = score >= limiar ? 'var(--green)' : score >= 0.40 ? 'var(--amber)' : 'var(--text2)';
+
+  // Barras por agente
+  vereditos.forEach(v => {
+    const key = v.agente;
+    const fill = $('cf-' + key);
+    const val  = $('cv-' + key);
+    const tag  = $('ct-' + key);
+    if (!fill) return;
+
+    const c = CONV_COLORS[v.estado] || CONV_COLORS.AGUARDAR;
+    fill.style.width    = Math.round(v.score * 100) + '%';
+    fill.style.background = c.fill;
+    val.textContent  = v.score.toFixed(2);
+    val.style.color  = c.fill;
+    tag.textContent  = v.estado === 'AGUARDAR' ? 'WAIT' : v.estado === 'ATENCAO' ? 'ATENC' : v.estado;
+    tag.className    = 'conv-tag ' + c.tag;
+
+    // Anima a linha inteira com brilho ao atualizar
+    const row = $('conv-' + key);
+    if (row) {
+      row.style.opacity = '0.6';
+      setTimeout(() => { row.style.opacity = '1'; row.style.transition = 'opacity .3s'; }, 50);
+    }
+  });
+
+  // Diagnóstico narrativo
+  const diag = $('conv-diag');
+  const favor   = vereditos.filter(v => v.estado === 'ENTRAR' || v.estado === 'ATENCAO');
+  const contra  = vereditos.filter(v => v.estado === 'AGUARDAR');
+  const abortar = vereditos.filter(v => v.estado === 'ABORTAR');
+  const estado  = sinal && sinal.estado || 'AGUARDAR';
+
+  let txt = '';
+  if (estado === 'ENTRAR') {
+    const nomes = favor.map(v=>v.agente.toUpperCase()).join(', ');
+    txt = `✅ CONSENSO DE ENTRADA — ${favor.length}/6 agentes convergem: ${nomes}. Score ${score.toFixed(3)} acima do limiar ${limiar.toFixed(2)}.`;
+  } else if (estado === 'ABORTAR') {
+    txt = `🛑 STOP — ${abortar.map(v=>v.motivo).join(' | ')}`;
+  } else if (estado === 'ATENCAO') {
+    const sf = favor.map(v=>`${v.agente.toUpperCase()}(${v.score.toFixed(2)})`).join(', ');
+    const sc = contra.map(v=>`${v.agente.toUpperCase()}(${v.score.toFixed(2)})`).join(', ');
+    txt = `⚠️ SINAL PARCIAL — A favor: ${sf||'—'}. Aguardando: ${sc||'—'}. Faltam ${(limiar - score).toFixed(3)} pts no score.`;
+  } else {
+    // Aguardar — explicar o que falta
+    const principais_contra = contra.sort((a,b)=>b.score-a.score).slice(0,3);
+    const bloqueios = principais_contra.map(v => {
+      const mot = v.motivo.split('|')[0].trim();
+      return `${v.agente.toUpperCase()}: ${mot}`;
+    });
+    const positivos = favor.length > 0 ? ` | Positivo: ${favor.map(v=>v.agente.toUpperCase()).join(', ')}` : '';
+    txt = `⏳ AGUARDAR — ${bloqueios.join(' • ')}${positivos}`;
+  }
+  diag.textContent = txt;
+  diag.style.borderLeftColor = estado==='ENTRAR'?'var(--green)':estado==='ABORTAR'?'var(--red)':estado==='ATENCAO'?'var(--amber)':'var(--border2)';
+}
+
+// ── Sinapse Neural ────────────────────────────────────────────────────────
+const SYNAPSE_AGENTS = [
+  {key:'streak',     label:'STR', icon:'⬤', color:'#ef4444', glow:'rgba(239,68,68,'},
+  {key:'margem',     label:'MAR', icon:'~',  color:'#06b6d4', glow:'rgba(6,182,212,'},
+  {key:'temporal',   label:'TMP', icon:'◷',  color:'#a78bfa', glow:'rgba(167,139,250,'},
+  {key:'covariancia',label:'COV', icon:'∿',  color:'#fb923c', glow:'rgba(251,146,60,'},
+  {key:'temperatura',label:'TEM', icon:'★',  color:'#fb7185', glow:'rgba(251,113,133,'},
+  {key:'risco',      label:'RSK', icon:'⚠',  color:'#eab308', glow:'rgba(234,179,8,'},
+];
+
+class SynapseViz {
+  constructor(canvas) {
+    this.cv = canvas;
+    this.cx = canvas.getContext('2d');
+    this.W = 0; this.H = 0;
+    this.particles = [];
+    this.nodeStates = {}; // key -> {score, estado, alpha, pulse}
+    this.orqScore = 0;
+    this.orqEstado = 'AGUARDAR';
+    this.orqPulse = 0;
+    this.idleTick = 0;
+    SYNAPSE_AGENTS.forEach(a => {
+      this.nodeStates[a.key] = {score:0.5, estado:'AGUARDAR', alpha:0.35, pulse:0};
+    });
+    this._raf = null;
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this._loop();
+  }
+
+  resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.cv.parentElement.clientWidth - 18;
+    const h = Math.min(w * 0.52, 220);
+    this.cv.width  = w * dpr;
+    this.cv.height = h * dpr;
+    this.cv.style.height = h + 'px';
+    this.cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.W = w; this.H = h;
+  }
+
+  nodePos(i) {
+    const cx = this.W / 2, cy = this.H / 2;
+    const r = Math.min(cx, cy) * 0.72;
+    const angle = (i / SYNAPSE_AGENTS.length) * Math.PI * 2 - Math.PI / 2;
+    return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
+  }
+
+  centerPos() { return { x: this.W / 2, y: this.H / 2 }; }
+
+  fireRound(vereditos, sinalEstado, sinalScore) {
+    this.orqEstado = sinalEstado || 'AGUARDAR';
+    this.orqScore  = sinalScore  || 0;
+    this.orqPulse  = 1.0;
+
+    (vereditos || []).forEach((v, idx) => {
+      const sa = SYNAPSE_AGENTS.find(a => a.key === v.agente);
+      if (!sa) return;
+      const ns = this.nodeStates[v.agente];
+      if (!ns) return;
+      ns.score  = v.score || 0;
+      ns.estado = v.estado || 'AGUARDAR';
+      ns.alpha  = ns.estado === 'AGUARDAR' ? 0.4 : 0.85;
+      ns.pulse  = 1.0;
+
+      // Lançar partículas proporcionais ao score
+      const count = Math.max(2, Math.round(v.score * 12));
+      const ipos  = this.nodePos(SYNAPSE_AGENTS.indexOf(sa));
+      const cpos  = this.centerPos();
+      for (let p = 0; p < count; p++) {
+        this.particles.push({
+          x: ipos.x, y: ipos.y,
+          tx: cpos.x, ty: cpos.y,
+          progress: 0,
+          speed: 0.012 + Math.random() * 0.018,
+          delay: p * 0.04,
+          color: sa.color,
+          glow: sa.glow,
+          size: 2 + Math.random() * 2.5,
+          alpha: 0,
+          estado: v.estado,
+        });
+      }
+    });
+  }
+
+  _stateColor(estado) {
+    switch(estado) {
+      case 'ENTRAR':  return '#22c55e';
+      case 'ATENCAO': return '#f59e0b';
+      case 'ABORTAR': return '#ef4444';
+      default:        return '#475569';
+    }
+  }
+
+  _orqColor() { return this._stateColor(this.orqEstado); }
+
+  _drawConnection(ctx, p1, p2, alpha, color) {
+    const grad = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
+    grad.addColorStop(0,   color.replace('rgba(', 'rgba(').replace(',}', `,${alpha * 0.7})`));
+    grad.addColorStop(0.5, color.replace(',}', `,${alpha})`));
+    grad.addColorStop(1,   color.replace(',}', `,${alpha * 0.3})`));
+    ctx.save();
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = alpha * 2.2 + 0.4;
+    ctx.shadowBlur = alpha > 0.6 ? 8 : 0;
+    ctx.shadowColor = color.replace(',}', ',0.5)');
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  _drawNode(ctx, pos, agent, ns, nodeR) {
+    const col   = ns.estado === 'AGUARDAR' ? agent.color : this._stateColor(ns.estado);
+    const alpha = ns.alpha;
+    const pulse = ns.pulse;
+
+    // Halo de pulso
+    if (pulse > 0.01) {
+      const hR = nodeR + pulse * nodeR * 1.4;
+      ctx.save();
+      ctx.globalAlpha = pulse * 0.35;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, hR, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Anel de score
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#1e2330';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, nodeR + 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = col;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, nodeR + 4, -Math.PI / 2, -Math.PI / 2 + ns.score * Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Círculo base
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const bg = ctx.createRadialGradient(pos.x - nodeR*0.3, pos.y - nodeR*0.3, 1, pos.x, pos.y, nodeR);
+    bg.addColorStop(0, col + 'cc');
+    bg.addColorStop(1, col + '22');
+    ctx.fillStyle = bg;
+    ctx.shadowBlur = alpha > 0.6 ? 14 : 4;
+    ctx.shadowColor = col;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, nodeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Label
+    ctx.save();
+    ctx.globalAlpha = Math.max(0.5, alpha);
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${nodeR * 0.55}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(agent.label, pos.x, pos.y);
+    // Score mini abaixo
+    ctx.font = `${nodeR * 0.38}px monospace`;
+    ctx.fillStyle = col;
+    ctx.fillText(ns.score.toFixed(2), pos.x, pos.y + nodeR + 12);
+    ctx.restore();
+  }
+
+  _drawCenter(ctx, pos, r) {
+    const col   = this._orqColor();
+    const pulse = this.orqPulse;
+    const score = this.orqScore;
+
+    // Ondas de expansão
+    if (pulse > 0.01) {
+      for (let w = 0; w < 3; w++) {
+        const wp = Math.max(0, pulse - w * 0.18);
+        if (wp <= 0) continue;
+        ctx.save();
+        ctx.globalAlpha = wp * 0.18;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r + wp * r * 2.5 + w * r * 0.8, 0, Math.PI * 2);
+        ctx.fillStyle = col;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Anel externo score
+    ctx.save();
+    ctx.strokeStyle = '#1e2330';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r + 6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 4;
+    ctx.shadowBlur = 16;
+    ctx.shadowColor = col;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r + 6, -Math.PI/2, -Math.PI/2 + score * Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Círculo central com gradiente
+    const bg = ctx.createRadialGradient(pos.x - r*0.3, pos.y - r*0.3, 1, pos.x, pos.y, r);
+    bg.addColorStop(0, col + 'ff');
+    bg.addColorStop(0.6, col + 'aa');
+    bg.addColorStop(1, col + '33');
+    ctx.save();
+    ctx.shadowBlur = 20 + pulse * 20;
+    ctx.shadowColor = col;
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Label ORQ
+    ctx.save();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${r * 0.48}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = '#000';
+    ctx.fillText('ORQ', pos.x, pos.y - 4);
+    ctx.font = `${r * 0.32}px sans-serif`;
+    ctx.fillStyle = col;
+    ctx.fillText(this.orqEstado, pos.x, pos.y + r * 0.45);
+    ctx.restore();
+  }
+
+  _loop() {
+    const ctx  = this.cx;
+    const W = this.W, H = this.H;
+    this.idleTick += 0.018;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Fundo levemente transparente (trail effect)
+    ctx.fillStyle = 'rgba(13,17,26,0.0)';
+    ctx.fillRect(0, 0, W, H);
+
+    const cpos  = this.centerPos();
+    const nodeR = Math.min(W, H) * 0.075;
+    const cR    = Math.min(W, H) * 0.11;
+
+    // Conexões
+    SYNAPSE_AGENTS.forEach((a, i) => {
+      const np = this.nodePos(i);
+      const ns = this.nodeStates[a.key];
+      const alpha = ns.alpha * 0.6 + Math.sin(this.idleTick + i) * 0.06;
+      this._drawConnection(ctx, np, cpos, Math.max(0.08, alpha), a.glow + '}');
+    });
+
+    // Partículas
+    this.particles = this.particles.filter(p => {
+      p.delay -= 0.016;
+      if (p.delay > 0) return true;
+      p.progress += p.speed;
+      if (p.progress >= 1) return false;
+
+      const t  = p.progress;
+      const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // ease in-out
+      const x  = p.x + (p.tx - p.x) * et;
+      const y  = p.y + (p.ty - p.y) * et;
+      const a  = t < 0.15 ? t/0.15 : t > 0.8 ? (1-t)/0.2 : 1;
+
+      ctx.save();
+      ctx.globalAlpha = a * 0.9;
+      ctx.shadowBlur  = p.size * 4;
+      ctx.shadowColor = p.color;
+      ctx.fillStyle   = p.estado === 'ENTRAR' ? '#22c55e' : p.estado === 'ATENCAO' ? '#f59e0b' : p.color;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return true;
+    });
+
+    // Nós dos agentes
+    SYNAPSE_AGENTS.forEach((a, i) => {
+      const np = this.nodePos(i);
+      const ns = this.nodeStates[a.key];
+      // Idle breathing
+      ns.alpha = ns.estado === 'AGUARDAR'
+        ? 0.3 + Math.sin(this.idleTick * 0.7 + i * 1.1) * 0.08
+        : Math.max(0.4, ns.alpha * 0.996);
+      ns.pulse = Math.max(0, ns.pulse - 0.022);
+      this._drawNode(ctx, np, a, ns, nodeR);
+    });
+
+    // Nó central
+    this.orqPulse = Math.max(0, this.orqPulse - 0.016);
+    this._drawCenter(ctx, cpos, cR);
+
+    this._raf = requestAnimationFrame(() => this._loop());
+  }
+
+  destroy() { if (this._raf) cancelAnimationFrame(this._raf); }
+}
+
+let _synViz = null;
+function initSynapse() {
+  const cv = document.getElementById('synapse-canvas');
+  if (!cv) return;
+  if (_synViz) _synViz.destroy();
+  _synViz = new SynapseViz(cv);
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────
+function buildChat(vv,sinal,rd,acao){
+  roundNum++;
+
+  // Separador de round
+  const sep=document.createElement('div');
+  sep.style.cssText='display:flex;align-items:center;gap:6px;margin:5px 0 2px;animation:fadeUp .2s ease';
+  const rc=rd.result>=1.5?'var(--green)':'var(--red)';
+  sep.innerHTML=`<div style="flex:1;height:1px;background:var(--border)"></div>
+    <div style="font-size:9px;font-weight:700;color:${rc};letter-spacing:.05em">#${roundNum} &nbsp;${rd.result.toFixed(2)}x [${rd.type}] &nbsp;${rd.bloco}</div>
+    <div style="flex:1;height:1px;background:var(--border)"></div>`;
+  $('chat').appendChild(sep);
+
+  // Todos os agentes falam sempre
+  if(vv) vv.forEach(v=>{
+    const a=AM[v.agente]||{};
+    const cl=v.estado==='ENTRAR'?'e':v.estado==='ABORTAR'?'x':v.estado==='ATENCAO'?'a':'';
+    const bw=Math.round(v.score*36);
+    const bc=v.score>=0.7?'var(--green)':v.score>=0.5?'var(--amber)':'var(--text3)';
+    const bar=`<span style="display:inline-block;width:${bw}px;height:3px;background:${bc};border-radius:2px;vertical-align:middle;margin-right:5px"></span>`;
+    chat(a.i||'?', a.n||v.agente, bar+`[${v.estado}] ${v.motivo}`, cl, a.c, a.b);
+  });
+
+  // Orquestrador — score final e limiar
+  const ocl=sinal.estado==='ENTRAR'?'e':sinal.estado==='ABORTAR'?'x':sinal.estado==='ATENCAO'?'a':'s';
+  const lim=sinal.dados&&sinal.dados._limiar_efetivo?` | limiar ${sinal.dados._limiar_efetivo}`:'';
+  chat('ORQ','Orquestrador', `Score ${sinal.score.toFixed(3)}${lim} → ${sinal.estado}`, ocl,'#c4c9d8','#252930');
+
+  // Ação recomendada
+  if(acao&&acao.tipo!=='aguardar'){
+    const acl=acao.cor==='green'?'e':acao.cor==='red'?'x':acao.cor==='amber'?'a':'s';
+    chat('ACT','Acao recomendada', acao.titulo, acl,'#ffffff','#1e2530');
+  }
+
+  const el=$('chat');
+  while(el.children.length>250) el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+}
+
+// Também o ctxt precisa suportar HTML (barra de score)
+function chatHtml(icon,name,html,cls,color,bg){
+  const d=document.createElement('div');
+  d.className='cmsg c'+(cls||'s');
+  d.innerHTML=`<div class="cav" style="background:${bg||'#1a1e28'};color:${color||'#9099b0'}">${esc(String(icon))}</div>
+    <div class="cbd"><div class="cwho" style="color:${color||'#9099b0'}">${esc(name)}</div>
+    <div class="ctxt">${html}</div></div>`;
+  $('chat').appendChild(d);
+}
+
+function chat(icon,name,text,cls,color,bg){
+  const d=document.createElement('div');
+  d.className='cmsg c'+(cls||'s');
+  // text pode conter HTML seguro (barras de score geradas internamente)
+  const safeText = typeof text==='string' && text.includes('<span') ? text : esc(text);
+  d.innerHTML=`<div class="cav" style="background:${bg||'#1a1e28'};color:${color||'#9099b0'}">${esc(String(icon))}</div>
+    <div class="cbd"><div class="cwho" style="color:${color||'#9099b0'}">${esc(name)}</div>
+    <div class="ctxt">${safeText}</div></div>`;
+  $('chat').appendChild(d);
+}
+
+// ── Gerenciador de Widgets ──────────────────────────────────────────────────
+let widgetsConfig = {
+  feed: true,
+  action: true,
+  meta: true,
+  agents: true,
+  conv: true,
+  grafo: true,
+  analise: true,
+  insight: true,
+  sinapse: true,
+  chat: true,
+  sessao: true,
+  risco: true,
+  'metricas-vivo': true,
+  'padrao-categorias': true,
+  treino: true
+};
+
+function toggleWidget(key) {
+  const el = $('w-' + key);
+  const check = $('wcheck-' + key);
+  if (!el) return;
+  const show = check ? check.checked : true;
+  widgetsConfig[key] = show;
+  el.style.display = show ? '' : 'none';
+  _atualizarColunasLayout();
+}
+
+function _atualizarColunasLayout() {
+  const container = document.querySelector('.main');
+  if (!container) return;
+  const feedShow = widgetsConfig['feed'];
+  const rightShow = widgetsConfig['sessao'] || widgetsConfig['risco'] || widgetsConfig['metricas-vivo'] || widgetsConfig['padrao-categorias'] || widgetsConfig['treino'];
+  
+  container.classList.remove('no-left-col', 'no-right-col', 'no-side-cols');
+  
+  if (!feedShow && !rightShow) {
+    container.classList.add('no-side-cols');
+  } else if (!feedShow) {
+    container.classList.add('no-left-col');
+  } else if (!rightShow) {
+    container.classList.add('no-right-col');
+  }
+  
+  const rightCol = $('col-right');
+  if (rightCol) {
+    rightCol.style.display = rightShow ? '' : 'none';
+  }
+}
+
+function salvarWidgetsConfig() {
+  localStorage.setItem('widgets_cfg', JSON.stringify(widgetsConfig));
+  send({tipo: 'salvar_widgets_config', config: widgetsConfig});
+  chat('SYS', 'Sistema', 'Layout dos widgets salvo com sucesso.', 's', '#34d399', '#0f2a1e');
+}
+
+function aplicarWidgetsConfig(cfg) {
+  if (!cfg) return;
+  widgetsConfig = {...widgetsConfig, ...cfg};
+  Object.keys(widgetsConfig).forEach(key => {
+    const check = $('wcheck-' + key);
+    if (check) check.checked = widgetsConfig[key];
+    const el = $('w-' + key);
+    if (el) el.style.display = widgetsConfig[key] ? '' : 'none';
+  });
+  _atualizarColunasLayout();
+}
+
+function inicializarWidgets() {
+  const local = localStorage.getItem('widgets_cfg');
+  if (local) {
+    try {
+      aplicarWidgetsConfig(JSON.parse(local));
+    } catch(e) {}
+  }
+}
+
+function switchTab(tab) {
+  if(tab === 'live') {
+    $('tab-live').style.display = 'grid';
+    $('tab-hist').style.display = 'none';
+    $('btn-tab-live').classList.add('active');
+    $('btn-tab-hist').classList.remove('active');
+  } else if(tab === 'hist') {
+    $('tab-live').style.display = 'none';
+    $('tab-hist').style.display = 'block';
+    $('btn-tab-live').classList.remove('active');
+    $('btn-tab-hist').classList.add('active');
+    carregarHistorico();
+  }
+}
+
+async function carregarHistorico() {
+  const tbody = $('hist-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2);">Carregando histórico...</td></tr>';
+  try {
+    const res = await fetch('/historico?limit=500');
+    const data = await res.json();
+    if(data.status === 'ok') {
+      tbody.innerHTML = '';
+      if(data.rodadas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2);">Nenhum histórico encontrado.</td></tr>';
+        return;
+      }
+      data.rodadas.forEach(r => {
+        const dt = new Date(r.ts);
+        const horaStr = dt.toLocaleString('pt-BR');
+        const multClass = r.mult >= 1.5 ? 'color:var(--green)' : 'color:var(--red)';
+        
+        let acaoHtml = `<span style="color:var(--text3)">AGUARDAR</span>`;
+        let podeExpandir = false;
+        
+        if (r.sinal) {
+          if (r.sinal.estado === 'ENTRAR') acaoHtml = `<span style="color:var(--green);font-weight:bold">ENTRAR (${r.sinal.score.toFixed(2)})</span>`;
+          else if (r.sinal.estado === 'ATENCAO') acaoHtml = `<span style="color:var(--amber);font-weight:bold">ATENÇÃO (${r.sinal.score.toFixed(2)})</span>`;
+          else if (r.sinal.estado === 'ABORTAR') acaoHtml = `<span style="color:var(--red);font-weight:bold">ABORTAR (${r.sinal.score.toFixed(2)})</span>`;
+          podeExpandir = true;
+        }
+
+        const tr = document.createElement('tr');
+        if(podeExpandir) {
+            tr.style.cursor = 'pointer';
+            tr.title = 'Clique para ver a análise dos agentes';
+            tr.onclick = () => {
+                const det = document.getElementById('det-' + r.id);
+                if(det) det.style.display = det.style.display === 'none' ? 'table-row' : 'none';
+            };
+        }
+        
+        tr.innerHTML = `
+          <td>${r.id}</td>
+          <td>${horaStr}</td>
+          <td>${r.bloco}</td>
+          <td>${acaoHtml}</td>
+          <td style="${multClass};font-weight:700">${r.mult.toFixed(2)}x</td>
+        `;
+        tbody.appendChild(tr);
+
+        if (podeExpandir && r.sinal.dados) {
+            const trDet = document.createElement('tr');
+            trDet.id = 'det-' + r.id;
+            trDet.style.display = 'none';
+            trDet.style.backgroundColor = 'var(--bg3)';
+            
+            let detalhes = '<div style="padding:10px;font-size:10px;display:flex;flex-wrap:wrap;gap:10px;">';
+            for(const [agente, inf] of Object.entries(r.sinal.dados)) {
+                if(inf && inf.motivo) {
+                    detalhes += `<div style="background:var(--bg2);border:1px solid var(--border2);padding:6px;border-radius:6px;flex:1;min-width:200px;">
+                        <strong style="color:var(--blue)">${agente.toUpperCase()}</strong><br/>
+                        <span style="color:var(--text3)">${inf.motivo}</span>
+                    </div>`;
+                }
+            }
+            detalhes += '</div>';
+            
+            trDet.innerHTML = `<td colspan="5" style="padding:0">${detalhes}</td>`;
+            tbody.appendChild(trDet);
+        }
+      });
+    } else {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--red);">Erro: ${data.msg}</td></tr>`;
+    }
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--red);">Erro de conexão.</td></tr>`;
+  }
+}
+
+// Init
+(function(){
+  const p=$('gpips');
+  for(let i=0;i<3;i++){const d=document.createElement('div');d.className='gpip';p.appendChild(d);}
+  calcR();
+  inicializarWidgets();
+  connect();
+  // Sinapse só inicializa quando o colapsável for aberto pela primeira vez
+})();
+</script>
+</body>
+</html>

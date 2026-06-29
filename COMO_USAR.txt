@@ -1,0 +1,96 @@
+================================================================
+SISTEMA MULTI-AGENTE — CRASH INTELLIGENCE
+================================================================
+
+ESTRUTURA DE ARQUIVOS
+─────────────────────
+config.py              → Todos os parâmetros (alvo, gale, pesos, EMA)
+memoria.py             → Buffer deslizante compartilhado entre agentes
+orquestrador.py        → Combina vereditos de todos os agentes
+banco.py               → Persistência SQLite (sessoes.db)
+notificador.py         → Saída de sinais (console agora, Telegram Fase 2)
+loader_csv.py          → Lê CSV da Tipminer
+backtest.py            → Backtest histórico com relatório P&L
+
+agents/
+  base.py              → Contrato base (Veredito)
+  agente_streak.py     → Conta reds consecutivos com gatilho dinâmico
+  agente_margem.py     → EMA dupla — mede velocidade e profundidade da queda
+  agente_temporal.py   → Taxa histórica do bloco de 10 minutos atual
+  agente_covariancia.py→ Padrão de categorias (ex: MICRO>MICRO>PRETO) → P(acerto)
+  agente_risco.py      → EV do ciclo Martingale, risco de ruína, stop loss
+
+================================================================
+COMO RODAR
+================================================================
+
+1. TESTE RÁPIDO (modo mock, dados aleatórios)
+   python main.py
+
+2. REPLAY DO SEU CSV HISTÓRICO
+   python main.py --csv data/brabet_30k.csv
+
+3. BACKTEST COM RELATÓRIO COMPLETO
+   python backtest.py data/brabet_30k.csv
+
+================================================================
+AJUSTAR PARÂMETROS
+================================================================
+Tudo em config.py:
+  ALVO = 1.50           → mudar alvo operacional
+  MAX_GALE = 2          → máximo de gales
+  SCORE_MINIMO_ENTRADA  → quão exigente é o sinal (0.62 = padrão)
+  EMA_ALPHA             → reatividade da Margem de Baixa
+  PESO_AGENTE_*         → redistribuir influência entre agentes
+
+================================================================
+COMO FUNCIONA — OS 5 AGENTES
+================================================================
+
+STREAK (peso 30%)
+  Conta reds consecutivos. Gatilho não é fixo:
+  - Retenção severa (<1.22x)  → exige 8 reds antes de sinalizar
+  - Retenção moderada          → exige 6
+  - Normal                     → exige 4
+  - Mercado solto (>1.80x)     → sinaliza em 2
+
+MARGEM (peso 25%)
+  EMA rápida + EMA lenta calculadas sobre todas as rodadas.
+  Detecta aceleração de queda quando EMA_rápida cai abaixo de EMA_lenta.
+  Quanto maior a divergência, maior o score.
+
+TEMPORAL (peso 20%)
+  Usa histórico do CSV para calcular taxa de acerto no bloco de 10 min atual.
+  Blocos com >60% histórico → score alto.
+  Blocos ruins (<44%) → score baixo (filtro de horário).
+
+COVARIÂNCIA (peso 15%)
+  Aprende a probabilidade condicional de padrões de 3 categorias:
+  ex: MICRO_CRASH>PRETO_CURTO>MICRO_CRASH → P(próxima ≥ alvo) = X%
+  Alimentado automaticamente pelo CSV histórico.
+
+RISCO (peso 10%) — ÚNICO COM VETO
+  Calcula EV real do ciclo G0+G1+G2.
+  Se 3 ciclos consecutivos perdidos → ABORTAR (veta todos os outros agentes).
+  Verifica banca mínima recomendada.
+
+================================================================
+DECISÃO FINAL
+================================================================
+Score = soma ponderada dos 5 agentes.
+  Score >= 0.62 E 2+ agentes votando ENTRAR → sinal ENTRAR
+  Score >= 0.50 OU 2+ agentes em ATENCAO   → sinal ATENCAO
+  Abaixo disso                              → AGUARDAR
+
+================================================================
+PRÓXIMAS FASES
+================================================================
+Fase 2: Conectar scraper ao vivo (Playwright)
+  - O scraper captura o multiplicador em tempo real
+  - Chama memoria.registrar() a cada nova rodada
+  - Todo o resto já está pronto
+
+Fase 3: Telegram
+  - Preencher TELEGRAM_TOKEN e TELEGRAM_CHAT_ID em config.py
+  - Notificador já está preparado para envio assíncrono
+================================================================

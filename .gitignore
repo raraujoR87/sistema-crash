@@ -1,0 +1,46 @@
+﻿# Ambiente
+.env
+*.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.pyo
+*.pyd
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Dados sensíveis / banco local
+*.db
+*.sqlite
+*.sqlite3
+bloco_state.json
+padrao_state.json
+data/
+logs/
+
+# Cache / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.claude/
+
+# Scripts de debug / exploração
+_analise_profunda.py
+_extract_rounds*.py
+_find_*.py
+_inspect_chunk.py
+_run_backtest.py
+_test_*.py
+
+# Crash (pasta auxiliar temporária)
+crash/
