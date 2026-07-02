@@ -16,8 +16,10 @@ from agents.agente_padrao      import AgentePadrao
 from agents.agente_tendencia   import AgenteTendencia
 from agents.agente_bloco       import AgenteBloco
 from agents.agente_rtp         import AgenteRTP
+from agents.agente_estrategia  import AgenteEstrategia
 import json
 import banco
+import random
 
 
 @dataclass
@@ -84,6 +86,7 @@ class Orquestrador:
         self.tendencia   = AgenteTendencia(alvo)
         self.bloco       = AgenteBloco(alvo)
         self.rtp_agente  = AgenteRTP(alvo)
+        self.estrategia  = AgenteEstrategia(alvo)
 
         # Configuração do Grafo de Orquestração (Workflow)
         self.workflow = StateGraph()
@@ -154,7 +157,7 @@ class Orquestrador:
         return state
 
     def _veto_risco_node(self, state: dict) -> dict:
-        agentes = ["temporal", "streak", "margem", "covariancia", "temperatura", "ia_gemini", "tendencia", "bloco", "padrao", "rtp"]
+        agentes = ["temporal", "streak", "margem", "covariancia", "temperatura", "ia_gemini", "tendencia", "bloco", "padrao", "rtp", "estrategia"]
         motivo_risco = next((v.motivo for v in state["vereditos"] if v.agente == "risco"), "")
         for nome in agentes:
             state["vereditos"].append(Veredito(
@@ -176,7 +179,7 @@ class Orquestrador:
         return state
 
     def _veto_temporal_node(self, state: dict) -> dict:
-        agentes = ["streak", "margem", "covariancia", "temperatura", "ia_gemini", "tendencia", "bloco", "padrao", "rtp"]
+        agentes = ["streak", "margem", "covariancia", "temperatura", "ia_gemini", "tendencia", "bloco", "padrao", "rtp", "estrategia"]
         motivo_temp = next((v.motivo for v in state["vereditos"] if v.agente == "temporal"), "")
         for nome in agentes:
             state["vereditos"].append(Veredito(
@@ -191,7 +194,7 @@ class Orquestrador:
 
     def _analise_node(self, state: dict) -> dict:
         # Executa os agentes analíticos e estatísticos
-        for agente in [self.streak, self.margem, self.covariancia, self.temperatura, self.ia_gemini, self.rtp_agente]:
+        for agente in [self.streak, self.margem, self.covariancia, self.temperatura, self.ia_gemini, self.rtp_agente, self.estrategia]:
             v = agente.analisar(state["memoria"])
             state["vereditos"].append(v)
             state["dados_agentes"][agente.nome] = v.dados
@@ -232,6 +235,7 @@ class Orquestrador:
             "risco":       config.PESO_AGENTE_RISCO,
             "ia_gemini":   config.PESO_AGENTE_IA,
             "rtp":         config.PESO_AGENTE_RTP,
+            "estrategia":  0.15,
             "tendencia":   0.10,
             "bloco":       0.12,   # peso do histórico de bloco/período
             "padrao":      0.13,
@@ -292,6 +296,7 @@ class Orquestrador:
 
         # Ordena os vereditos de acordo com a ordem padrão para consistência no frontend
         ordem_agentes = ["rtp", "streak", "margem", "temporal", "covariancia", "temperatura", "risco", "ia_gemini"]
+        ordem_agentes = ["rtp", "streak", "margem", "temporal", "covariancia", "temperatura", "risco", "ia_gemini", "estrategia"]
         vereditos_ordenados = sorted(vereditos, key=lambda v: ordem_agentes.index(v.agente) if v.agente in ordem_agentes else 99)
 
         state["sinal"] = Sinal(
@@ -317,7 +322,7 @@ class Orquestrador:
         final_state = self.workflow.execute(initial_state)
         sinal = final_state["sinal"]
 
-        # ── Pausa após Red Total (Bloqueio Anti-Consecutivo) ──
+        # ── Pausa Pós-Indicação (Sniper Cooldown) ──
         if self._rounds_de_pausa_pos_red > 0:
             if not self._em_backtest:
                 self._rounds_de_pausa_pos_red -= 1
@@ -325,7 +330,7 @@ class Orquestrador:
                 self._rounds_de_pausa_pos_red -= 1
             
             sinal.estado = "ABORTAR"
-            sinal.mensagem = f"[SISTEMA] Pausa Anti-Sequência de Red: Faltam {self._rounds_de_pausa_pos_red} rodadas."
+            sinal.mensagem = f"[SISTEMA] Pausa Estratégica (Sniper): Faltam {self._rounds_de_pausa_pos_red} rodadas."
 
         # ── Período de aquecimento (só conta rounds ao vivo, não backtest) ──
         if not self._em_backtest:
@@ -356,6 +361,7 @@ class Orquestrador:
         self.covariancia.carregar_historico_csv(rodadas_historicas)
         self.temperatura.carregar_historico_csv(rodadas_historicas)
         self.risco.carregar_historico_csv(rodadas_historicas)
+        self.estrategia.carregar_historico_csv(rodadas_historicas)
 
         # Pre-popula a calibração com um backtest rápido das últimas 300 rodadas do histórico
         self._historico_resultados.clear()
@@ -392,14 +398,15 @@ class Orquestrador:
         if len(self._historico_resultados) > 500:
             self._historico_resultados.pop(0)
 
+        # Após qualquer indicação finalizada, aplicamos o cooldown de 5 a 8 minutos (15 a 24 rodadas)
+        self._rounds_de_pausa_pos_red = random.randint(15, 24)
+        
         if not acertou:
             self._falsos_positivos_consecutivos += 1
-            self._rounds_de_pausa_pos_red = 10  # Bloqueia entradas pelas próximas 10 rodadas
         else:
             self._falsos_positivos_consecutivos = 0
-            self._rounds_de_pausa_pos_red = 0
 
-        # Feedback loop → AgentePadrao e AgenteBloco aprendem com o resultado
+        # Propaga feedback para os agentes (Padrao e Bloco)
         self.padrao.registrar_resultado(acertou, mult_real)
         self.bloco.registrar_resultado(acertou, gale_nivel=gale_nivel)
 

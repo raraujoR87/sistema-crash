@@ -1,0 +1,11 @@
+{'timestamp': '2026-06-27T19:16:05.419560', 'n_historico': 30000, 'n_ao_vivo': 9144, 'n_total': 39144, 'n_treino': 31315, 'duracao_s': 0.89}
+{'timestamp': '2026-06-27T20:00:07.710368', 'n_historico': 30000, 'n_ao_vivo': 9247, 'n_total': 39247, 'n_treino': 31397, 'duracao_s': 0.83}
+{'timestamp': '2026-06-27T21:11:10.869694', 'n_historico': 30000, 'n_ao_vivo': 9411, 'n_total': 39411, 'n_treino': 31528, 'duracao_s': 0.99}
+{'timestamp': '2026-06-27T21:11:20.402434', 'n_historico': 30000, 'n_ao_vivo': 9411, 'n_total': 39411, 'n_treino': 31528, 'duracao_s': 0.76}
+{'timestamp': '2026-06-27T22:13:46.494848', 'n_historico': 30000, 'n_ao_vivo': 9561, 'n_total': 39561, 'n_treino': 31648, 'duracao_s': 1.44}
+{'timestamp': '2026-06-27T22:54:23.603535', 'n_historico': 30000, 'n_ao_vivo': 10708, 'n_total': 40708, 'n_treino': 32566, 'duracao_s': 1.95}
+{'timestamp': '2026-06-28T23:46:17.844174', 'n_historico': 30000, 'n_ao_vivo': 22184, 'n_total': 52184, 'n_treino': 41747, 'duracao_s': 1.2}
+{'timestamp': '2026-06-28T23:46:45.829620', 'n_historico': 30000, 'n_ao_vivo': 22186, 'n_total': 52186, 'n_treino': 41748, 'duracao_s': 1.04}
+{'timestamp': '2026-07-01T00:00:01.987029', 'n_historico': 30000, 'n_ao_vivo': 28744, 'n_total': 58744, 'n_treino': 46995, 'duracao_s': 4.39}
+{'timestamp': '2026-07-01T21:38:57.730032', 'n_historico': 30000, 'n_ao_vivo': 32289, 'n_total': 62289, 'n_treino': 49831, 'duracao_s': 2.2}
+{'timestamp': '2026-07-01T21:39:31.300106', 'n_historico': 30000, 'n_ao_vivo': 32290, 'n_total': 62290, 'n_treino': 49832, 'duracao_s': 1.16}

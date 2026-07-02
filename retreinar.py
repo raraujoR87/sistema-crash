@@ -87,6 +87,7 @@ def retreinar(orq, verbose: bool = True) -> dict:
         orq_treino.covariancia.carregar_historico_csv(treino)
         orq_treino.temperatura.carregar_historico_csv(treino)
         orq_treino.risco.carregar_historico_csv(treino)
+        orq_treino.estrategia.carregar_historico_csv(treino)
         orq_treino.salvar_modelo()
 
     # ── 6. Log do retreino ────────────────────────────────────────────

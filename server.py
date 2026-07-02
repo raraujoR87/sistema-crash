@@ -69,7 +69,7 @@ def _max_gale_para_alvo(alvo: float) -> int:
     if alvo <= 3.00: return 1
     return 1
 
-def _progressao_recuperacao(alvo: float, stake_base: float, max_gale: int | None = None) -> list[float]:
+def _progressao_recuperacao(alvo: float, stake_base: float, max_gale: int | None = None, deficit: float = 0.0) -> list[float]:
     """Calcula stakes para cada nível de gale que garantem recuperar TODAS as
     perdas anteriores e ainda gerar o lucro original (stake_base * (alvo-1)).
 
@@ -79,11 +79,16 @@ def _progressao_recuperacao(alvo: float, stake_base: float, max_gale: int | None
         max_gale = _max_gale_para_alvo(alvo)
     p = alvo - 1.0          # profit ratio por unidade apostada
     lucro_alvo = stake_base * p
-    stakes = [round(stake_base, 2)]
-    for _ in range(max_gale):
-        perdas_acum = sum(stakes)
-        proximo = (perdas_acum + lucro_alvo) / p
+    
+    stakes = []
+    perdas_acum = deficit
+    for _ in range(max_gale + 1):
+        if perdas_acum <= 0.0 and not stakes:
+            proximo = stake_base
+        else:
+            proximo = (perdas_acum + lucro_alvo) / p
         stakes.append(round(proximo, 2))
+        perdas_acum += proximo
     return stakes  # stakes[0]=G0, stakes[1]=G1, etc.
 
 def _stake_para_nivel(nivel: int, base: float, max_nivel: int) -> float:
@@ -177,8 +182,9 @@ class Sessao:
             p = 0.60
             s = t / (n * max(p, 0.01))
             return [round(s * (1 + i * 0.25), 2) for i in range(max_g + 1)]
-        # Martingale com recuperação matemática exata
-        return _progressao_recuperacao(alvo, base, max_g)
+        # Martingale com recuperação matemática exata contínua
+        current_deficit = self.deficit if getattr(self, 'modo_recuperacao', False) else 0.0
+        return _progressao_recuperacao(alvo, base, max_g, deficit=current_deficit)
 
     def iniciar(self, alvo: float):
         self.ativa          = True
@@ -414,6 +420,7 @@ async def processar_round(resultado: float, instant: str, tipo: str, temp: int):
         "risco":       cfg.PESO_AGENTE_RISCO,
         "ia_gemini":   cfg.PESO_AGENTE_IA,
         "rtp":         cfg.PESO_AGENTE_RTP,
+        "estrategia":  0.15,
         "tendencia":   0.10,
         "bloco":       0.12,
         "padrao":      0.13,
@@ -845,6 +852,13 @@ async def historico_handler(request):
 
 # ── WebSocket handler ──────────────────────────────────────────────────────────
 async def ws_handler(request):
+    import os
+    token = request.query.get("token", "")
+    senha_correta = os.getenv("DASHBOARD_PASSWORD", "crash2026")
+    if token != senha_correta:
+        log.warning(f"Acesso negado no WebSocket. Token inválido: {token}")
+        return web.Response(status=403, text="Acesso Negado")
+
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     clientes.add(ws)

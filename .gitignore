@@ -1,4 +1,4 @@
-﻿# Ambiente
+# Ambiente
 .env
 *.env
 .env.*
@@ -17,12 +17,12 @@ dist/
 build/
 
 # Dados sensíveis / banco local
-*.db
-*.sqlite
-*.sqlite3
-bloco_state.json
-padrao_state.json
-data/
+# *.db
+# *.sqlite
+# *.sqlite3
+# bloco_state.json
+# padrao_state.json
+# data/
 logs/
 
 # Cache / IDE
